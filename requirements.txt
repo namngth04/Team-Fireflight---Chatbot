@@ -1,0 +1,31 @@
+# FastAPI và dependencies
+fastapi>=0.115.7
+uvicorn[standard]>=0.32.0
+python-multipart>=0.0.9
+
+# Database
+sqlalchemy>=2.0.38
+psycopg2-binary>=2.9.9
+alembic>=1.13.1
+
+# Authentication
+python-jose[cryptography]>=3.3.0
+bcrypt>=4.1.2
+
+# AI/ML
+sentence-transformers>=2.3.1
+chromadb>=0.4.22
+openai>=1.54.0  # For Ollama fallback (OpenAI-compatible API)
+
+# MCP Server
+fastmcp>=2.13.0
+
+# Environment variables
+python-dotenv>=1.0.1
+
+# Utilities
+pydantic>=2.10.4
+pydantic-settings>=2.2.1
+
+# Spoon AI (đã pip install -e .)
+# spoon-ai-sdk sẽ được install từ local với: pip install -e spoon-core
