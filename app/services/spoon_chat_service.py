@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.models.message import MessageRole
 from app.models.user import User
 from app.services.conversation_service import ConversationService
-from app.services.spoon_agent_service import get_spoon_agent_service
+from app.services.spoon_graph_service import SpoonGraphService
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ class SpoonChatService:
     ) -> None:
         self.db = db
         self.conversation_service = conversation_service
-        self.spoon_agent_service = get_spoon_agent_service()
+        self.spoon_graph_service = SpoonGraphService()
 
     async def send_message(
         self,
@@ -38,94 +38,51 @@ class SpoonChatService:
         """Process a chat message using Spoon agent then fallback."""
         conversation = self.conversation_service.get_conversation(conversation_id, user)
 
-        spoon_result = await self._run_spoon_agent(
-            conversation=conversation,
-            user=user,
-            message=message,
+        if not self.spoon_graph_service.enabled:
+            logger.warning("Spoon graph service disabled. Returning error response.")
+            return self._error_response(
+                conversation=conversation,
+                user_message=message,
+                error_text="Xin lỗi, tôi không thể xử lý yêu cầu này ngay bây giờ.",
+                provider="spoon-error",
+                metadata={"error": "graph-disabled"},
+            )
+
+        graph_result = await self.spoon_graph_service.run(
+            user_query=message,
+            username=user.username,
             top_k=top_k,
+            rewrite=True,
         )
 
-        if spoon_result.get("response"):
-            logger.info("Spoon agent returned response via %s", spoon_result.get("provider_used"))
-            user_message = self.conversation_service.create_message(
-                conversation,
-                message,
-                MessageRole.USER,
+        if graph_result.get("response"):
+            logger.info(
+                "Spoon graph returned response via %s",
+                graph_result.get("provider_used"),
             )
-            assistant_message = self.conversation_service.create_message(
-                conversation,
-                spoon_result["response"],  # type: ignore[index]
-                MessageRole.ASSISTANT,
+            user_message, assistant_message = self._save_conversation_turn(
+                conversation, message, graph_result["response"]  # type: ignore[index]
             )
-
-            result = {
-                "response": spoon_result["response"],
+            return {
+                "response": graph_result["response"],
                 "user_message": user_message,
                 "assistant_message": assistant_message,
-                "provider_used": spoon_result.get("provider_used") or "spoon-agent",
-                "spoon_agent_metadata": spoon_result.get("metadata"),
-            }
-            return result
-
-        logger.warning("Spoon agent unavailable (%s). Returning fallback message.", spoon_result.get("error"))
-        error_response = "Xin lỗi, tôi không thể trả lời câu hỏi này vào lúc này."
-        user_message = self.conversation_service.create_message(
-            conversation,
-            message,
-            MessageRole.USER,
-        )
-        assistant_message = self.conversation_service.create_message(
-            conversation,
-            error_response,
-            MessageRole.ASSISTANT,
-        )
-        return {
-            "response": error_response,
-            "user_message": user_message,
-            "assistant_message": assistant_message,
-            "provider_used": "spoon-error",
-            "spoon_agent_metadata": {"error": spoon_result.get("error")},
-        }
-
-    async def _run_spoon_agent(
-        self,
-        *,
-        conversation,
-        user: User,
-        message: str,
-        top_k: int,
-    ) -> Dict[str, object]:
-        """Execute Spoon agent with minimal context. Returns response or error."""
-        if not self.spoon_agent_service.enabled:
-            return {"error": "Spoon agent disabled in configuration."}
-
-        history = self.conversation_service.get_recent_messages(conversation, limit=10)
-        history_str = self._format_history(history)
-
-        try:
-            result = await self.spoon_agent_service.run_mcp_agent(
-                user_query=message,
-                username=user.username,
-                conversation_id=conversation.id,
-                context="",
-                conversation_history=history_str,
-                retrieved_documents=[],
-                top_k=top_k,
-            )
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.error("Spoon agent execution failed: %s", exc, exc_info=True)
-            return {"error": str(exc)}
-
-        if result.get("response"):
-            metadata = result.get("metadata") or {}
-            provider = self._infer_provider(metadata)
-            return {
-                "response": result["response"],
-                "metadata": metadata,
-                "provider_used": provider,
+                "provider_used": graph_result.get("provider_used") or "spoon-graph",
+                "spoon_agent_metadata": graph_result.get("metadata"),
             }
 
-        return {"error": result.get("error", "Unknown Spoon agent error")}
+        error_msg = graph_result.get("error") or "graph-no-answer"
+        logger.warning("Spoon graph could not answer (%s).", error_msg)
+        return self._error_response(
+            conversation=conversation,
+            user_message=message,
+            error_text="Xin lỗi, tôi không tìm thấy thông tin phù hợp cho câu hỏi này.",
+            provider="spoon-error",
+            metadata={
+                "error": error_msg,
+                "intent": graph_result.get("metadata", {}).get("intent") if isinstance(graph_result.get("metadata"), dict) else None,
+            },
+        )
 
     @staticmethod
     def _format_history(messages) -> str:
@@ -138,13 +95,43 @@ class SpoonChatService:
             parts.append(f"{speaker}: {msg.content}")
         return "\n".join(parts)
 
-    @staticmethod
-    def _infer_provider(metadata: Dict[str, object]) -> str:
-        tool_calls = metadata.get("tool_calls") or []
-        if isinstance(tool_calls, list):
-            if any(call == "vector_search_simple" for call in tool_calls):
-                return "spoon-vector"
-            if any(call == "upload_document" for call in tool_calls):
-                return "spoon-upload"
-        return "spoon-agent"
+    def _save_conversation_turn(
+        self,
+        conversation,
+        user_message: str,
+        assistant_message: str,
+    ):
+        user_msg = self.conversation_service.create_message(
+            conversation,
+            user_message,
+            MessageRole.USER,
+        )
+        assistant_msg = self.conversation_service.create_message(
+            conversation,
+            assistant_message,
+            MessageRole.ASSISTANT,
+        )
+        return user_msg, assistant_msg
+
+    def _error_response(
+        self,
+        *,
+        conversation,
+        user_message: str,
+        error_text: str,
+        provider: str,
+        metadata: Optional[Dict[str, object]] = None,
+    ) -> Dict[str, object]:
+        user_msg, assistant_msg = self._save_conversation_turn(
+            conversation,
+            user_message,
+            error_text,
+        )
+        return {
+            "response": error_text,
+            "user_message": user_msg,
+            "assistant_message": assistant_msg,
+            "provider_used": provider,
+            "spoon_agent_metadata": metadata or {},
+        }
 

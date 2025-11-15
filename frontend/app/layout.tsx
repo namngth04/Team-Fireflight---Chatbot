@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Chatbot Nội Bộ Công Ty",
+  title: "Chatbot nội bộ công ty",
   description: "Chatbot nội bộ công ty sử dụng Spoon AI framework",
 };
 

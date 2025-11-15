@@ -93,7 +93,8 @@ def _default_conversation_title(message: str) -> str:
 
 instructions = (
     "MCP server cho chatbot nội bộ. Toolset bao gồm:\n"
-    "- vector_search_simple: truy vấn snippet từ ChromaDB.\n"
+    "- policy_txt_lookup: truy vấn snippet từ tài liệu chính sách (.txt).\n"
+    "- ops_txt_lookup: truy vấn snippet từ tài liệu vận hành/kỹ thuật (.txt).\n"
     "- conversation_history_simple: lấy lịch sử hội thoại.\n"
     "- upload_document: thêm tài liệu mới.\n"
     "Các tool sử dụng chung database và vector store với backend FastAPI."
@@ -116,33 +117,70 @@ def _get_retrieval_client() -> CustomChromaClient:
     return _retrieval_client
 
 
-@server.tool(
-    name="vector_search_simple",
-    description="Truy vấn snippet tài liệu nội bộ bằng ChromaDB và trả về metadata gọn nhẹ.",
-    tags={"documents", "retrieval"},
-)
-async def vector_search_simple(
+def _run_txt_lookup(
+    *,
     query: str,
-    top_k: int = 5,
-    include_content: bool = True,
+    top_k: int,
+    document_type: DocumentType,
+    include_content: bool,
 ) -> Dict[str, Any]:
-    """Query vector database and return lightweight snippets."""
     if not query or not query.strip():
         raise ValueError("Query must not be empty.")
 
     top_k = max(1, min(top_k, 10))
     retrieval_client = _get_retrieval_client()
-    documents = retrieval_client.query(query, k=top_k)
+    documents = retrieval_client.query(
+        query,
+        k=top_k,
+        where={"document_type": {"$eq": document_type.value}},
+    )
 
-    results: List[Dict[str, Any]] = []
-    for doc in documents:
-        results.append(_serialize_document(doc, include_content=include_content))
+    results: List[Dict[str, Any]] = [
+        _serialize_document(doc, include_content=include_content) for doc in documents
+    ]
 
     return {
         "query": query,
         "results": results,
         "count": len(results),
+        "document_type": document_type.value,
     }
+
+
+@server.tool(
+    name="policy_txt_lookup",
+    description="Truy vấn snippet từ tài liệu chính sách nội bộ (.txt).",
+    tags={"documents", "retrieval", "policy"},
+)
+async def policy_txt_lookup(
+    query: str,
+    top_k: int = 5,
+    include_content: bool = True,
+) -> Dict[str, Any]:
+    return _run_txt_lookup(
+        query=query,
+        top_k=top_k,
+        document_type=DocumentType.POLICY,
+        include_content=include_content,
+    )
+
+
+@server.tool(
+    name="ops_txt_lookup",
+    description="Truy vấn snippet từ tài liệu vận hành/kỹ thuật (.txt).",
+    tags={"documents", "retrieval", "ops"},
+)
+async def ops_txt_lookup(
+    query: str,
+    top_k: int = 5,
+    include_content: bool = True,
+) -> Dict[str, Any]:
+    return _run_txt_lookup(
+        query=query,
+        top_k=top_k,
+        document_type=DocumentType.OPS,
+        include_content=include_content,
+    )
 
 
 @server.tool(

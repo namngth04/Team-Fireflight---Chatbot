@@ -1,0 +1,29 @@
+# Chính sách làm việc từ xa (Remote Work) 2025
+
+## Phạm vi áp dụng
+- Áp dụng cho toàn bộ nhân viên làm việc toàn thời gian sau 90 ngày thử việc.
+- Không áp dụng cho các vị trí yêu cầu trực onsite (Facilities, IT Helpdesk ca trực).
+
+## Số ngày và thời gian làm việc
+- Nhân viên được đăng ký tối đa 8 ngày remote/tháng, không quá 3 ngày liên tiếp.
+- Khung giờ làm việc giữ nguyên (08:30 – 17:30). Phải online trên Microsoft Teams ≥ 6 giờ/ngày.
+- Cuộc họp quan trọng (All-hands, 1:1 Performance) vẫn phải tham dự trực tiếp nếu được yêu cầu trước 48h.
+
+## Quy trình đăng ký
+1. Tạo yêu cầu “Remote Work Request” trong HRIS trước ít nhất 1 ngày.
+2. Trưởng bộ phận duyệt dựa trên tải công việc, cam kết SLA.
+3. IT xác nhận thiết bị bảo mật (VPN, MFA) trước 9h sáng ngày làm việc từ xa.
+
+## Yêu cầu bảo mật
+- Luôn kết nối qua VPN công ty, không dùng Wi-Fi công cộng không mã hóa.
+- Không in ấn tài liệu mật tại nhà; sử dụng OneDrive hoặc SharePoint để chia sẻ.
+- Báo ngay cho Security nếu phát hiện thiết bị thất lạc trong thời gian remote.
+
+## Theo dõi & báo cáo
+- Team HR tổng hợp thống kê remote hằng tháng, gửi email cho HRBP và cao nhất là COO.
+- Bất kỳ vi phạm SLA >2 lần/tháng sẽ bị tạm dừng quyền remote trong 30 ngày.
+
+## Liên hệ
+- HRBP phụ trách: hrbp-people@example.com
+- IT Security Hotline: 1900.0909 (24/7)
+

@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     SPOON_MCP_TRANSPORT: str = "sse"  # sse | http
     SPOON_MCP_URL: Optional[str] = None
     SPOON_MCP_PATH: str = "/sse"
+    SPOON_LLM_PROVIDER_CHAIN: Optional[str] = None
     
     # LLM - Retry Configuration
     LLM_RETRY_ATTEMPTS: int = 3  # Number of retry attempts

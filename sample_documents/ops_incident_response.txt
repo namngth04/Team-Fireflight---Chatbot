@@ -1,0 +1,37 @@
+# Runbook xử lý sự cố chatbot (Incident Response)
+
+## Mục tiêu
+- Phát hiện và khôi phục dịch vụ chatbot trong vòng < 30 phút.
+- Giảm thiểu ảnh hưởng người dùng nội bộ, giữ log phục vụ RCA.
+
+## Định nghĩa mức độ
+- Sev1: Chatbot không trả lời hoặc 500 toàn hệ thống.
+- Sev2: Trả lời chậm >10s hoặc 5xx từng phần (ví dụ chỉ policy).
+- Sev3: Lỗi hiển thị UI, metadata sai nhưng vẫn có câu trả lời.
+
+## Quy trình xử lý
+1. **Phát hiện**: Alert từ Grafana hoặc phản hồi người dùng → tạo ticket `INC-xxxx`.
+2. **Triển khai on-call**:
+   - DevOps kiểm tra `kubectl get pods -n chatbot`.
+   - Backend lead theo dõi log `uvicorn`/`spoon_graph_service`.
+3. **Khoanh vùng nguyên nhân**:
+   - Kiểm tra health MCP (`GET http://mcp-service:8001/sse`).
+   - Chạy `scripts/test_chat_provider.py --message "ping"` để xác nhận pipeline.
+4. **Hành động khôi phục**:
+   - Restart pod `chatbot-backend` hoặc `mcp-server` nếu crash.
+   - Nếu LLM quota vượt, chuyển tạm `DEFAULT_LLM_PROVIDER=gemini`.
+   - Với sự cố dữ liệu (Chroma down) → chạy `docker restart chroma`.
+5. **Thông báo**: cập nhật Slack `#chatbot-runtime`, nêu thời gian downtime dự kiến.
+
+## Sau sự cố
+- Hoàn tất RCA trong 48h, lưu tại Confluence > Chatbot > Incident Reports.
+- Checklist RCA:
+  - Nguyên nhân gốc?
+  - Metric nào không cảnh báo sớm?
+  - Cần cập nhật runbook/monitor nào?
+
+## Tài nguyên tham khảo
+- Dashboard: Grafana → Folder “Chatbot”.
+- Alert contact list: `docs/oncall_roster.md`.
+- Script hỗ trợ: `scripts/collect_logs.ps1`.
+

@@ -126,7 +126,12 @@ class CustomChromaClient(BaseRetrievalClient):
                 embeddings=embeddings,
             )
     
-    def query(self, query: str, k: int = 5) -> List[Document]:
+    def query(
+        self,
+        query: str,
+        k: int = 5,
+        where: Optional[Dict[str, Any]] = None,
+    ) -> List[Document]:
         """Query documents from the collection.
         
         Args:
@@ -146,6 +151,7 @@ class CustomChromaClient(BaseRetrievalClient):
             query_embeddings=[query_embedding],
             n_results=k,
             include=["documents", "metadatas", "distances"],
+            where=where or None,
         )
         
         # Parse results

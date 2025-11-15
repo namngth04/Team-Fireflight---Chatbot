@@ -1,6 +1,6 @@
 """Message schemas."""
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, Dict, Any
 from datetime import datetime
 from app.models.message import MessageRole
 
@@ -32,4 +32,6 @@ class ChatMessageResponse(BaseModel):
     """Chat message response schema."""
     message: MessageResponse
     response: MessageResponse
+    provider_used: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
 

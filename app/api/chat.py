@@ -215,6 +215,8 @@ async def send_message(
     # Build response
     return ChatMessageResponse(
         message=MessageResponse.model_validate(user_message),
-        response=MessageResponse.model_validate(assistant_message)
+        response=MessageResponse.model_validate(assistant_message),
+        provider_used=result.get("provider_used"),
+        metadata=result.get("spoon_agent_metadata"),
     )
 

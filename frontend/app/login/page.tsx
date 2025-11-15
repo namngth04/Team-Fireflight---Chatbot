@@ -75,7 +75,7 @@ export default function LoginPage() {
               Đăng nhập
             </h2>
             <p className="mt-2 text-sm text-gray-600">
-              Chatbot Nội Bộ Công Ty
+              Chatbot nội bộ công ty
             </p>
           </div>
 

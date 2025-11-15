@@ -1,0 +1,37 @@
+# Chính sách thưởng hiệu suất (Performance Bonus) FY2025
+
+## Mục tiêu
+- Thưởng dựa trên kết quả kinh doanh của công ty và đóng góp của từng cá nhân.
+- Tăng tính minh bạch, tạo động lực cải tiến hiệu suất dài hạn.
+
+## Đối tượng áp dụng
+- Nhân viên chính thức (bao gồm leader, trưởng nhóm).
+- Không áp dụng cho intern, contractor ngắn hạn (< 6 tháng).
+
+## Công thức tính
+Tổng thưởng = Lương cơ bản * Hệ số cấp bậc * Điểm hiệu suất * Hệ số công ty
+- Hệ số cấp bậc: Staff 0.8, Senior 1.0, Lead 1.2, Manager 1.5.
+- Điểm hiệu suất (0 – 1.2) dựa trên kết quả OKR:
+  - Xuất sắc: 1.1 – 1.2
+  - Đạt: 0.9 – 1.0
+  - Cần cải thiện: 0.7 – 0.8
+- Hệ số công ty dựa trên EBITDA: 0.8 (không đạt), 1.0 (đạt), 1.2 (vượt 10%).
+
+## Quy trình xét thưởng
+1. Quản lý trực tiếp đánh giá OKR trên hệ thống, chốt điểm trước ngày 5/1.
+2. HRBP và Finance rà soát chéo để đảm bảo ngân sách tổng ≤ 12% quỹ lương.
+3. CEO phê duyệt cuối cùng, trả thưởng cùng kỳ lương tháng 2.
+
+## Các trường hợp đặc biệt
+- Thành viên nghỉ việc trước ngày chi trả sẽ không nhận thưởng.
+- Nhân viên bị cảnh cáo kỷ luật trong năm sẽ bị trừ 30% tổng thưởng.
+- Dự án vượt cột mốc chiến lược có thể đề xuất Bonus Spot (phụ lục A).
+
+## Công khai thông tin
+- HR gửi báo cáo tổng quan (không nêu tên) cho Ban Giám đốc sau mỗi chu kỳ.
+- Nhân viên có thể khiếu nại trong vòng 7 ngày qua email compensation@example.com.
+
+## Liên hệ
+- HR Compensation: compensation@example.com
+- Hotline bí mật phản ánh: 0987.222.333
+

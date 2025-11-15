@@ -1,0 +1,35 @@
+# Chính sách nghỉ phép năm 2025
+
+## Phạm vi áp dụng
+- Áp dụng cho toàn bộ nhân viên chính thức và thử việc trên 2 tháng.
+- Không áp dụng cho cộng tác viên ngắn hạn hoặc đối tác ngoài.
+
+## Số ngày nghỉ
+- Nhân viên chính thức: 14 ngày làm việc/năm, được cộng vào đầu năm tài chính.
+- Nhân viên thử việc: 8 ngày làm việc/năm, được sử dụng sau tháng thứ 2.
+- Nghỉ bù lễ/Tết: được đăng ký riêng trong vòng 30 ngày sau kỳ lễ.
+- Nghỉ không lương: tối đa 5 ngày/năm, phải có phê duyệt của Giám đốc bộ phận.
+- Thời gian nghỉ cuối tuần (thứ 7, Chủ nhật) không tính vào số ngày nghỉ phép trừ khi chọn nghỉ liên tục.
+
+## Quy trình đăng ký
+1. Điền form “Yêu cầu nghỉ phép” trên hệ thống nội bộ.
+2. Trưởng bộ phận duyệt trong 24h.
+3. HR xác nhận và cập nhật payroll.
+
+## Báo cáo & chấm công
+- HR sẽ khóa sổ nghỉ phép vào ngày 25 hằng tháng; mọi yêu cầu phát sinh sau thời điểm này được chuyển sang kỳ kế tiếp.
+- Trưởng bộ phận chịu trách nhiệm đối chiếu bảng chấm công, xác nhận số ngày nghỉ thực tế so với hệ thống.
+- Nhân viên có thể theo dõi quota còn lại tại module “Leave Balance” trong HRIS.
+
+## Ghi chú
+- Không cộng dồn sang năm sau (trừ khi được Giám đốc Nhân sự phê duyệt).
+- Khi nghỉ trên 3 ngày liên tiếp cần đính kèm lý do chi tiết và người thay thế công việc.
+- Nếu quên check-in lại sau kỳ nghỉ, báo HR trong 24h để tránh ảnh hưởng đến lương.
+- Trường hợp khẩn cấp (ốm đau) có thể xin nghỉ qua điện thoại trước, bổ sung đơn trong vòng 48h.
+
+## Liên hệ
+- Bộ phận phụ trách: HR Operations.
+- Email: hr-operations@example.com
+- Hotline nội bộ: 1900.0101 (giờ hành chính)
+
+

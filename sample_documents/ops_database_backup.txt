@@ -1,0 +1,39 @@
+# Quy trình sao lưu & khôi phục database chatbot
+
+## Phạm vi
+- Áp dụng cho PostgreSQL (`chatbot_db`) và ChromaDB (`/var/lib/chroma`).
+- Tần suất: backup hằng ngày 02:00 UTC, lưu trữ 14 phiên bản gần nhất.
+
+## Công cụ
+- PostgreSQL: `pg_dump`, job chạy trong GitHub Actions self-hosted runner.
+- ChromaDB: rsync sang S3 bucket `s3://chatbot-backup/chroma/`.
+- Mã hóa: AWS KMS key `alias/chatbot-backup`.
+
+## Quy trình backup PostgreSQL
+1. Workflow `backup-db.yml` chạy theo cron, xác thực bằng OIDC vào AWS.
+2. Thực thi:
+   ```
+   pg_dump --format=custom --no-owner --dbname=$DATABASE_URL > chatbot_db.dump
+   aws s3 cp chatbot_db.dump s3://chatbot-backup/postgres/$(date +%Y%m%d).dump
+   ```
+3. Sau khi upload, Lambda kiểm tra checksum, ghi log CloudWatch.
+
+## Quy trình backup ChromaDB
+1. Pod `backup-chroma` mount PVC `chroma-data`.
+2. Chạy `rsync -a /data/chroma/ /backup/chroma-$(date +%Y%m%d)` và sync lên S3.
+3. Sau mỗi lần sync, cập nhật file `manifest.json` chứa danh sách snapshot.
+
+## Kiểm tra và khôi phục định kỳ
+- Mỗi tuần thực hiện restore thử nghiệm vào namespace `chatbot-backup-test`.
+- Lệnh khôi phục Postgres: `pg_restore --clean --dbname=$TEST_DB chatbot_db.dump`.
+- Với Chroma: sync ngược từ S3, chạy script `scripts/verify_chroma_embeddings.py`.
+
+## Cảnh báo & xử lý sự cố
+- Nếu job backup thất bại 2 lần liên tiếp → gửi alert PagerDuty `DB-BACKUP`.
+- Trong trường hợp mất dữ liệu production, ưu tiên restore Postgres trước, sau đó Chroma.
+- Thời gian khôi phục mục tiêu (RTO): ≤ 60 phút, mất dữ liệu tối đa (RPO): 24h.
+
+## Liên hệ
+- DBA On-call: dba@example.com
+- Slack: `#data-platform`
+

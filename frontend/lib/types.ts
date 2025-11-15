@@ -40,16 +40,7 @@ export interface UserUpdate {
   password?: string;
 }
 
-export type DocumentType =
-  | 'policies'
-  | 'processes'
-  | 'guidelines'
-  | 'company_info'
-  | 'forms'
-  | 'training'
-  | 'announcements'
-  | 'technical'
-  | 'support';
+export type DocumentType = 'policy' | 'ops';
 
 export interface Document {
   id: number;

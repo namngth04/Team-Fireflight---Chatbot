@@ -1,2 +1,2 @@
-# Chatbot Nội Bộ Công Ty
+# Chatbot nội bộ công ty
 

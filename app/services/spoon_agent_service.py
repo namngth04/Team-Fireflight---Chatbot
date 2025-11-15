@@ -19,7 +19,8 @@ class SpoonAgentService:
     """Wraps a SpoonReactMCP agent configured for the internal MCP server."""
 
     TOOL_DEFINITIONS = [
-        ("vector_search_simple", "Truy vấn snippet từ ChromaDB để lấy thông tin nền."),
+        ("policy_txt_lookup", "Truy vấn snippet trong tài liệu chính sách."),
+        ("ops_txt_lookup", "Truy vấn snippet trong tài liệu vận hành/kỹ thuật."),
         ("conversation_history_simple", "Lấy lịch sử hội thoại để duy trì ngữ cảnh."),
         ("upload_document", "Tải tài liệu .txt và lập chỉ mục vào hệ thống."),
     ]
@@ -56,7 +57,8 @@ class SpoonAgentService:
             system_prompt = (
                 "Bạn là Spoon MCP agent hỗ trợ chatbot nội bộ. "
                 "Bạn có quyền sử dụng các tool sau:\n"
-                "- vector_search_simple(query, top_k): lấy snippet tài liệu.\n"
+                "- policy_txt_lookup(query, top_k): lấy snippet chính sách.\n"
+                "- ops_txt_lookup(query, top_k): lấy snippet vận hành/kỹ thuật.\n"
                 "- conversation_history_simple(conversation_id, username, limit): lấy lịch sử.\n"
                 "- upload_document(file_path, document_type, description, uploaded_by): thêm tài liệu.\n\n"
                 "Hãy trả lời trực tiếp, ngắn gọn bằng tiếng Việt cho câu hỏi hiện tại. "

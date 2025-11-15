@@ -54,7 +54,7 @@ export const MessageList: React.FC<MessageListProps> = ({
         <div className="flex items-center justify-center h-full">
           <div className="text-center text-gray-500">
             <Bot className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-lg font-medium">Chào mừng đến với Chatbot Nội Bộ</p>
+            <p className="text-lg font-medium">Chào mừng đến với Chatbot nội bộ</p>
             <p className="text-sm mt-2">Hãy bắt đầu cuộc trò chuyện bằng cách gửi một câu hỏi</p>
           </div>
         </div>

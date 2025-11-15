@@ -1,6 +1,6 @@
-# 🖥️ Frontend - Chatbot Nội Bộ Công Ty
+# 🖥️ Frontend - Chatbot nội bộ công ty
 
-Frontend cho hệ thống chatbot nội bộ công ty sử dụng Next.js, TypeScript, và Tailwind CSS.
+Frontend cho hệ thống Chatbot nội bộ công ty sử dụng Next.js, TypeScript, và Tailwind CSS.
 
 ## 🚀 Quick Start
 
@@ -19,7 +19,7 @@ Tạo file `.env.local`:
 NEXT_PUBLIC_API_URL=http://localhost:8000
 
 # App Name
-NEXT_PUBLIC_APP_NAME=Chatbot Nội Bộ Công Ty
+NEXT_PUBLIC_APP_NAME=Chatbot nội bộ công ty
 ```
 
 ### 3. **Run Development Server**

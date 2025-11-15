@@ -9,7 +9,7 @@ from app.api import auth, users, documents, chat
 
 # Create FastAPI app
 app = FastAPI(
-    title="Chatbot Nội Bộ Công Ty",
+    title="Chatbot nội bộ công ty",
     description="Chatbot nội bộ công ty sử dụng Spoon AI framework",
     version="1.0.0",
     docs_url="/docs",
@@ -36,7 +36,7 @@ app.include_router(chat.router)
 async def root():
     """Root endpoint."""
     return {
-        "message": "Chatbot Nội Bộ Công Ty API",
+        "message": "Chatbot nội bộ công ty API",
         "version": "1.0.0",
         "docs": "/docs",
     }

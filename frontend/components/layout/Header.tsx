@@ -28,7 +28,7 @@ export const Header: React.FC = () => {
               className="flex items-center space-x-2 text-gray-900 hover:text-indigo-600 transition-colors duration-200"
             >
               <MessageSquare className="h-6 w-6" />
-              <span className="text-xl font-bold">Chatbot Nội Bộ</span>
+              <span className="text-xl font-bold">Chatbot nội bộ</span>
             </button>
           </div>
           

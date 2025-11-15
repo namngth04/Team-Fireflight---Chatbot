@@ -30,15 +30,8 @@ import {
 
 // Document type options with Vietnamese labels
 const DOCUMENT_TYPE_OPTIONS: { value: DocumentType; label: string }[] = [
-  { value: 'policies', label: 'Chính sách' },
-  { value: 'processes', label: 'Quy trình' },
-  { value: 'guidelines', label: 'Hướng dẫn' },
-  { value: 'company_info', label: 'Thông tin công ty' },
-  { value: 'forms', label: 'Biểu mẫu' },
-  { value: 'training', label: 'Tài liệu đào tạo' },
-  { value: 'announcements', label: 'Thông báo' },
-  { value: 'technical', label: 'Tài liệu kỹ thuật' },
-  { value: 'support', label: 'Tài nguyên hỗ trợ' },
+  { value: 'policy', label: 'Chính sách / HR' },
+  { value: 'ops', label: 'Vận hành / Kỹ thuật' },
 ];
 
 const getDocumentTypeLabel = (type: DocumentType): string => {
@@ -61,14 +54,14 @@ export default function DocumentsPage() {
 
   // Upload form state
   const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [uploadDocumentType, setUploadDocumentType] = useState<DocumentType>('policies');
+  const [uploadDocumentType, setUploadDocumentType] = useState<DocumentType>('policy');
   const [uploadDescription, setUploadDescription] = useState('');
   const [uploading, setUploading] = useState(false);
 
   // Edit form state
   const [editData, setEditData] = useState<DocumentUpdate>({
     description: '',
-    document_type: 'policies',
+    document_type: 'policy',
   });
 
   // Load documents
@@ -119,7 +112,7 @@ export default function DocumentsPage() {
       setSuccess('Upload tài liệu thành công');
       setShowUploadModal(false);
       setUploadFile(null);
-      setUploadDocumentType('policies');
+      setUploadDocumentType('policy');
       setUploadDescription('');
       setTimeout(() => {
         setSuccess('');
@@ -242,7 +235,7 @@ export default function DocumentsPage() {
                     <select
                       value={documentTypeFilter}
                       onChange={(e) => setDocumentTypeFilter(e.target.value)}
-                      className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
                     >
                       <option value="">Tất cả loại</option>
                       {DOCUMENT_TYPE_OPTIONS.map((option) => (
@@ -410,7 +403,7 @@ export default function DocumentsPage() {
                 setError('');
                 setSuccess('');
                 setUploadFile(null);
-                setUploadDocumentType('policies');
+                setUploadDocumentType('policy');
                 setUploadDescription('');
               }}
               title="Upload tài liệu"
@@ -447,13 +440,13 @@ export default function DocumentsPage() {
 
                 {/* Document Type */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-900 mb-2">
                     Loại tài liệu
                   </label>
                   <select
                     value={uploadDocumentType}
                     onChange={(e) => setUploadDocumentType(e.target.value as DocumentType)}
-                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
                   >
                     {DOCUMENT_TYPE_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -465,7 +458,7 @@ export default function DocumentsPage() {
 
                 {/* Description */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-900 mb-2">
                     Mô tả (tùy chọn)
                   </label>
                   <textarea
@@ -473,7 +466,7 @@ export default function DocumentsPage() {
                     onChange={(e) => setUploadDescription(e.target.value)}
                     placeholder="Nhập mô tả cho tài liệu..."
                     rows={3}
-                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 placeholder:text-gray-500"
                   />
                 </div>
 
@@ -487,7 +480,7 @@ export default function DocumentsPage() {
                       setError('');
                       setSuccess('');
                       setUploadFile(null);
-                      setUploadDocumentType('policies');
+                      setUploadDocumentType('policy');
                       setUploadDescription('');
                     }}
                   >

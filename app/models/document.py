@@ -7,16 +7,10 @@ from app.core.database import Base
 
 
 class DocumentType(str, enum.Enum):
-    """Document types."""
-    POLICIES = "policies"  # Chính sách
-    PROCESSES = "processes"  # Quy trình
-    GUIDELINES = "guidelines"  # Hướng dẫn
-    COMPANY_INFO = "company_info"  # Thông tin công ty
-    FORMS = "forms"  # Biểu mẫu
-    TRAINING = "training"  # Tài liệu đào tạo
-    ANNOUNCEMENTS = "announcements"  # Thông báo
-    TECHNICAL = "technical"  # Tài liệu kỹ thuật
-    SUPPORT = "support"  # Tài nguyên hỗ trợ
+    """Document types (rút gọn theo kiến trúc mới)."""
+
+    POLICY = "policy"
+    OPS = "ops"
 
 
 class Document(Base):
@@ -26,7 +20,14 @@ class Document(Base):
     id = Column(Integer, primary_key=True, index=True)
     filename = Column(String(255), nullable=False)
     file_path = Column(String(500), nullable=False)
-    document_type = Column(Enum(DocumentType), nullable=False, index=True)
+    document_type = Column(
+        Enum(
+            DocumentType,
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+        ),
+        nullable=False,
+        index=True,
+    )
     description = Column(Text, nullable=True)
     uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     uploaded_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
