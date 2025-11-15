@@ -14,8 +14,7 @@ from app.schemas.conversation import (
 )
 from app.schemas.message import MessageCreate, MessageResponse, ChatMessageResponse
 from app.services.conversation_service import ConversationService
-from app.services.rag_service import RAGService
-from app.services.rag_graph_service import RAGGraphService
+from app.services.spoon_chat_service import SpoonChatService
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -171,18 +170,15 @@ async def send_message(
     conversation_service = ConversationService(db)
     conversation = conversation_service.get_conversation(conversation_id, current_user)
     
-    # Generate response using RAG Graph service (StateGraph)
-    # RAGGraphService will handle: load history, retrieve documents, build context,
-    # generate response, and save messages automatically
-    rag_graph_service = RAGGraphService(db, conversation_service)
-    result = await rag_graph_service.generate_response(
-        user_query=message_create.content,
+    # Generate response using Spoon chat orchestrator (with fallback to RAG)
+    spoon_chat_service = SpoonChatService(db, conversation_service)
+    result = await spoon_chat_service.send_message(
         conversation_id=conversation_id,
+        message=message_create.content,
         user=current_user,
-        top_k=5
+        top_k=5,
     )
     
-    # Get messages from result (RAGGraphService already saved them in save_message node)
     user_message = result.get("user_message")
     assistant_message = result.get("assistant_message")
     
@@ -208,12 +204,12 @@ async def send_message(
         user_message = conversation_service.create_message(
             conversation,
             message_create.content,
-            MessageRole.USER
+            MessageRole.USER,
         )
         assistant_message = conversation_service.create_message(
             conversation,
             result.get("response", ""),
-            MessageRole.ASSISTANT
+            MessageRole.ASSISTANT,
         )
     
     # Build response

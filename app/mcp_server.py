@@ -15,7 +15,6 @@ from app.models.document import DocumentType
 from app.models.user import User
 from app.services.conversation_service import ConversationService
 from app.services.document_service import DocumentService
-from app.services.rag_graph_service import RAGGraphService
 from app.services.retrieval.custom_chroma import CustomChromaClient
 
 
@@ -93,9 +92,11 @@ def _default_conversation_title(message: str) -> str:
 # ---------------------------------------------------------------------------
 
 instructions = (
-    "MCP server cho chatbot nội bộ. Sử dụng các tool để truy vấn tài liệu, "
-    "upload tài liệu mới, trò chuyện với bot và xem lịch sử hội thoại. "
-    "Các tool hoạt động trên cùng cơ sở dữ liệu và vector store với backend FastAPI."
+    "MCP server cho chatbot nội bộ. Toolset bao gồm:\n"
+    "- vector_search_simple: truy vấn snippet từ ChromaDB.\n"
+    "- conversation_history_simple: lấy lịch sử hội thoại.\n"
+    "- upload_document: thêm tài liệu mới.\n"
+    "Các tool sử dụng chung database và vector store với backend FastAPI."
 )
 
 server = FastMCP(
@@ -116,15 +117,16 @@ def _get_retrieval_client() -> CustomChromaClient:
 
 
 @server.tool(
-    name="query_documents",
-    description=(
-        "Tìm kiếm tài liệu nội bộ liên quan tới một câu hỏi. "
-        "Sử dụng ChromaDB với embeddings sentence-transformers."
-    ),
+    name="vector_search_simple",
+    description="Truy vấn snippet tài liệu nội bộ bằng ChromaDB và trả về metadata gọn nhẹ.",
     tags={"documents", "retrieval"},
 )
-async def query_documents(query: str, top_k: int = 5) -> Dict[str, Any]:
-    """Query vector database for documents related to the provided question."""
+async def vector_search_simple(
+    query: str,
+    top_k: int = 5,
+    include_content: bool = True,
+) -> Dict[str, Any]:
+    """Query vector database and return lightweight snippets."""
     if not query or not query.strip():
         raise ValueError("Query must not be empty.")
 
@@ -134,7 +136,7 @@ async def query_documents(query: str, top_k: int = 5) -> Dict[str, Any]:
 
     results: List[Dict[str, Any]] = []
     for doc in documents:
-        results.append(_serialize_document(doc))
+        results.append(_serialize_document(doc, include_content=include_content))
 
     return {
         "query": query,
@@ -197,78 +199,17 @@ async def upload_document(
 
 
 @server.tool(
-    name="chat_with_bot",
-    description=(
-        "Gửi tin nhắn tới chatbot nội bộ với workflow RAG của Spoon. "
-        "Có thể truyền conversation_id để tiếp tục cuộc trò chuyện cũ."
-    ),
-    tags={"chat", "rag"},
-)
-async def chat_with_bot(
-    message: str,
-    username: str,
-    conversation_id: Optional[int] = None,
-    top_k: int = 5,
-    title: Optional[str] = None,
-) -> Dict[str, Any]:
-    """Send a message to the chatbot using Spoon's StateGraph RAG pipeline."""
-    if not message or not message.strip():
-        raise ValueError("Message must not be empty.")
-
-    db = _get_session()
-    try:
-        user = _get_user_by_username(db, username)
-        conversation_service = ConversationService(db)
-
-        if conversation_id is not None:
-            conversation = conversation_service.get_conversation(conversation_id, user)
-        else:
-            conversation = conversation_service.create_conversation(
-                user=user,
-                title=title or _default_conversation_title(message),
-            )
-            conversation_id = conversation.id
-
-        rag_service = RAGGraphService(db, conversation_service)
-        result = await rag_service.generate_response(
-            user_query=message,
-            conversation_id=conversation_id,
-            user=user,
-            top_k=top_k,
-        )
-
-        assistant_message = result.get("assistant_message")
-        user_message = result.get("user_message")
-
-        response_payload: Dict[str, Any] = {
-            "conversation_id": conversation_id,
-            "response": result.get("response", ""),
-            "provider_used": result.get("provider_used"),
-            "assistant_message": (
-                _serialize_message(assistant_message) if assistant_message else None
-            ),
-            "user_message": (
-                _serialize_message(user_message) if user_message else None
-            ),
-        }
-
-        return response_payload
-    finally:
-        db.close()
-
-
-@server.tool(
-    name="get_conversation_history",
-    description="Lấy lịch sử hội thoại (tối đa 100 tin nhắn) cho một conversation.",
+    name="conversation_history_simple",
+    description="Lấy lịch sử hội thoại (tối đa 50 tin nhắn) cho một conversation.",
     tags={"chat"},
 )
-async def get_conversation_history(
+async def conversation_history_simple(
     conversation_id: int,
     username: str,
-    limit: int = 50,
+    limit: int = 20,
 ) -> Dict[str, Any]:
     """Return conversation metadata and recent messages."""
-    limit = max(1, min(limit, 100))
+    limit = max(1, min(limit, 50))
 
     db = _get_session()
     try:
@@ -297,24 +238,33 @@ async def get_conversation_history(
         db.close()
 
 
+
+
 # ---------------------------------------------------------------------------
 # Entrypoint helpers
 # ---------------------------------------------------------------------------
 
 
 def run_server():
-    """Run MCP server with transport determined from environment."""
+    """Run MCP server with transport determined from environment/settings."""
     if not settings.MCP_SERVER_ENABLED:
         raise RuntimeError("MCP server is disabled. Set MCP_SERVER_ENABLED=true to run.")
 
-    transport = os.getenv("MCP_TRANSPORT", "http")
+    transport = os.getenv("MCP_TRANSPORT")
+    if not transport:
+        transport = settings.SPOON_MCP_TRANSPORT or "sse"
+    transport = transport.lower()
 
     if transport == "stdio":
         server.run(transport="stdio")
-    else:
-        # Default: HTTP transport for local testing
+    elif transport == "sse":
         port = settings.MCP_SERVER_PORT or 8001
-        server.run(transport="http", host="0.0.0.0", port=port)
+        server.run(transport="sse", host=settings.MCP_SERVER_HOST or "0.0.0.0", port=port)
+    elif transport == "http":
+        port = settings.MCP_SERVER_PORT or 8001
+        server.run(transport="http", host=settings.MCP_SERVER_HOST or "0.0.0.0", port=port)
+    else:
+        raise ValueError(f"Unsupported MCP transport '{transport}'. Use 'sse', 'http', or 'stdio'.")
 
 
 if __name__ == "__main__":

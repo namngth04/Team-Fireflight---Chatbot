@@ -24,6 +24,7 @@ venv/
 env/
 ENV/
 spoon-env/
+.venv/
 
 # Environment variables
 .env

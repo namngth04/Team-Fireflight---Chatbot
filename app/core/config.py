@@ -1,7 +1,7 @@
 """Configuration settings for the application."""
 from pydantic_settings import BaseSettings
 from pydantic import field_validator
-from typing import List
+from typing import List, Optional
 
 
 class Settings(BaseSettings):
@@ -20,6 +20,14 @@ class Settings(BaseSettings):
     OLLAMA_BASE_URL: str = "http://localhost:11434/v1"
     OLLAMA_API_KEY: str = "ollama"  # Dummy key, Ollama doesn't require real API key
     OLLAMA_MODEL: str = "qwen2.5:7b"  # Model tốt nhất cho tiếng Việt (khuyến nghị: qwen2.5:7b)
+
+    # SPOON Agent + MCP
+    SPOON_AGENT_ENABLED: bool = True
+    SPOON_AGENT_MAX_STEPS: int = 6
+    SPOON_AGENT_TIMEOUT: int = 90  # seconds
+    SPOON_MCP_TRANSPORT: str = "sse"  # sse | http
+    SPOON_MCP_URL: Optional[str] = None
+    SPOON_MCP_PATH: str = "/sse"
     
     # LLM - Retry Configuration
     LLM_RETRY_ATTEMPTS: int = 3  # Number of retry attempts
@@ -47,7 +55,9 @@ class Settings(BaseSettings):
     
     # MCP Server
     MCP_SERVER_ENABLED: bool = True
+    MCP_SERVER_HOST: str = "localhost"
     MCP_SERVER_PORT: int = 8001
+    MCP_TRANSPORT: Optional[str] = None
     
     # ChromaDB
     CHROMADB_PATH: str = "./chroma_db"
@@ -75,6 +85,14 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             return v.lower() in ("true", "1", "yes", "on")
         return bool(v)
+
+    @field_validator("SPOON_AGENT_ENABLED", mode="before")
+    @classmethod
+    def parse_spoon_agent_enabled(cls, v):
+        """Parse SPOON_AGENT_ENABLED from string."""
+        if isinstance(v, str):
+            return v.lower() in ("true", "1", "yes", "on")
+        return bool(v)
     
     @property
     def cors_origins_list(self) -> List[str]:
@@ -85,6 +103,16 @@ class Settings(BaseSettings):
         env_file = ".env"
         case_sensitive = True
         env_file_encoding = "utf-8"
+
+    @property
+    def spoon_mcp_url(self) -> str:
+        """Resolve MCP endpoint URL for Spoon agent."""
+        if self.SPOON_MCP_URL:
+            return self.SPOON_MCP_URL
+        transport = (self.SPOON_MCP_TRANSPORT or "sse").lower()
+        default_path = self.SPOON_MCP_PATH or ("/mcp" if transport == "http" else "/sse")
+        host = self.MCP_SERVER_HOST or "localhost"
+        return f"http://{host}:{self.MCP_SERVER_PORT}{default_path}"
 
 
 settings = Settings()
