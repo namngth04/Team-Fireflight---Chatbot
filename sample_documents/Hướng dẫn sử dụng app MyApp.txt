@@ -1,0 +1,27 @@
+Hướng dẫn sử dụng ứng dụng MyApp
+
+1. Giới thiệu
+- MyApp là ứng dụng giúp bạn quản lý công việc và theo dõi các hoạt động hằng ngày một cách đơn giản, trực quan.
+
+2. Yêu cầu trước khi sử dụng
+- Có kết nối Internet ổn định.
+- Đã đăng ký tài khoản MyApp (qua website hoặc ngay trên ứng dụng).
+
+3. Cách đăng nhập
+- Mở ứng dụng MyApp trên điện thoại.
+- Nhập email và mật khẩu đã đăng ký.
+- Nhấn nút "Đăng nhập" để vào màn hình chính.
+
+4. Chức năng chính
+- Trang chủ: Xem tổng quan các công việc và thông báo mới nhất.
+- Công việc: Tạo mới, chỉnh sửa, hoàn thành hoặc xóa công việc.
+- Thông báo: Nhận nhắc nhở về công việc sắp đến hạn.
+- Cài đặt: Thay đổi thông tin cá nhân, mật khẩu, và tuỳ chỉnh thông báo.
+
+5. Hỗ trợ
+- Nếu gặp lỗi trong quá trình sử dụng, vui lòng:
+  - Kiểm tra lại kết nối Internet.
+  - Thử đóng và mở lại ứng dụng.
+  - Liên hệ bộ phận hỗ trợ qua email: support@myapp.com.
+
+Cảm ơn bạn đã sử dụng MyApp!

@@ -168,7 +168,7 @@ class DocumentService:
         description: Optional[str] = None,
         document_type: Optional[DocumentType] = None
     ) -> Document:
-        """Update document.
+        """Update document and keep vector database in sync.
         
         Args:
             document: Document object to update.
@@ -178,21 +178,53 @@ class DocumentService:
         Returns:
             Updated Document object.
         """
+        # Track whether we need to re-index this document in vector DB
+        should_reindex = False
+        new_type: Optional[DocumentType] = None
+
         # Update description
         if description is not None:
             document.description = description
         
         # Update document type
-        if document_type is not None:
-            # If document type changes, we need to update vector database metadata
-            if document.document_type != document_type:
-                # For now, we'll just update the database
-                # In the future, we might want to update vector database metadata
-                document.document_type = document_type
+        if document_type is not None and document_type != document.document_type:
+            # Mark for re-indexing in vector DB
+            should_reindex = True
+            new_type = document_type
+            # Update DB type first so state is consistent
+            document.document_type = document_type
         
+        # Persist changes in DB
         self.db.commit()
         self.db.refresh(document)
-        
+
+        # If type changed, we need to update vector database:
+        # 1) delete old chunks for this document_id
+        # 2) re-parse file and add chunks with new document_type metadata
+        if should_reindex and new_type is not None:
+            try:
+                # Delete old vectors
+                self.retrieval_client.delete_documents_by_metadata(document.id)
+
+                # Re-parse file and re-index with new type
+                chunks = parse_txt_file(
+                    file_path=document.file_path,
+                    document_id=document.id,
+                    filename=document.filename,
+                    document_type=new_type.value,
+                    uploaded_by=document.uploaded_by,
+                )
+
+                if chunks:
+                    self.retrieval_client.add_documents(chunks)
+            except Exception:
+                # Nếu vector DB lỗi, không rollback DB để tránh làm hỏng metadata chính.
+                # Có thể cải tiến sau bằng logging chuẩn.
+                print(
+                    f"Warning: Failed to reindex document {document.id} in vector database "
+                    f"after type change."
+                )
+
         return document
     
     def delete_document(self, document: Document) -> bool:
