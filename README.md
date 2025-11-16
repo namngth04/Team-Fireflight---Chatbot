@@ -68,12 +68,12 @@ Spoon AI giúp tách bạch luồng điều phối (graph) khỏi controller, d�
 - Cho phép thực hiện các thao tác ngoài UI hiện có: tìm kiếm tài liệu, upload, trò chuyện với bot, truy xuất lịch sử hội thoại.
 - Kế thừa toàn bộ logic RAG/StateGraph ở backend, đảm bảo trả lời nhất quán với ứng dụng web.
 
-### Những gì đã triển khai
+### Những gì đã triển khai (hiện tại)
 
-- Toolset: `query_documents`, `upload_document`, `chat_with_bot`, `get_conversation_history`.
-- Hỗ trợ transport HTTP (mặc định) và tương thích với proxy `fastmcp dev` để dùng Inspector qua SSE.
-- Sẵn sàng fallback Gemini → Ollama nhờ tái sử dụng `rag_graph_service`.
-- Logging & retry tương tự backend, đảm bảo error handling nhất quán.
+- Toolset chính: `policy_txt_lookup`, `ops_txt_lookup`, `conversation_history_simple`, `upload_document` (được dùng bởi `SpoonGraphService`).
+- Hỗ trợ transport `sse`, `http`, `stdio` (cấu hình qua env/`settings`), tương thích với `fastmcp dev` để dùng Spoon Inspector.
+- Tận dụng chung LLM stack (Gemini + Ollama fallback) và vector store (`CustomChromaClient`) với backend, đảm bảo câu trả lời nhất quán.
+- Logging & retry tương tự backend, đảm bảo error handling nhất quán giữa API và MCP.
 
 ### Định hướng phát triển
 
