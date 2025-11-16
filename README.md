@@ -1,23 +1,35 @@
 # 🤖 Internal Company Chatbot
 
-Nền tảng chatbot nội bộ hỗ trợ nhân viên tra cứu chính sách, quy trình và tài nguyên kỹ thuật dựa trên tập tài liệu do quản trị viên quản lý. Hệ thống áp dụng Spoon AI StateGraph, kết hợp Retrieval-Augmented Generation (RAG) và Spoon MCP server để cung cấp câu trả lời chính xác, cập nhật.
+Nền tảng chatbot nội bộ hỗ trợ nhân viên tra cứu chính sách nhân sự và runbook vận hành. Hệ thống dùng FastAPI + Spoon AI StateGraph, kết hợp Retrieval-Augmented Generation (RAG) và MCP server để truy xuất tài liệu chuẩn hóa và sinh câu trả lời đáng tin cậy.
 
 ## 🌟 Tóm Tắt Nhanh
 
-- **Mục tiêu**: xây dựng chatbot nội bộ với hai vai trò (Admin, Employee) và luồng chat tương tự ChatGPT nhưng dựa trên tài liệu doanh nghiệp.
+- **Bài toán**: xây chatbot nội bộ giúp nhân viên hỏi chính sách và quy trình vận hành.
+- **Giải pháp**: FastAPI backend kích hoạt Spoon Graph (Gemini + Ollama fallback) với retrieval ChromaDB và MCP server để chia sẻ toolset cho các client khác.
 - **Điểm nổi bật**:
-  - Admin quản lý người dùng & tài liệu (9 loại tài liệu .txt, 50MB).
-  - Nhân viên trò chuyện với bot, lưu và tiếp tục hội thoại.
-  - RAG pipeline với Spoon AI StateGraph, Gemini 2.5 Flash làm mô hình chính, Ollama model fallback (tùy chọn).
-  - MCP server cung cấp tool cho Inspector hoặc ứng dụng khác: tra cứu tài liệu, upload, chat, lấy lịch sử hội thoại.
+  - Quản trị viên quản lý người dùng, upload tài liệu `.txt`, phân loại policy/ops.
+  - Nhân viên chat real-time, lưu lịch sử hội thoại, tiếp tục trên nhiều thiết bị.
+  - Spoon Graph orchestration chạy multi-intent: rewrite query, gọi song song `policy_txt_lookup`, `ops_txt_lookup`, rồi tổng hợp citation.
+  - MCP server (FastMCP) mở sẵn tool `policy_txt_lookup`, `ops_txt_lookup`, `conversation_history_simple`, `upload_document` để IDE/Inspector tái sử dụng cùng pipeline.
 
-## 🏗️ Kiến Trúc & Công Nghệ
+## 🏗️ Kiến Trúc Hệ Thống
 
-- **Backend**: FastAPI, SQLAlchemy, Alembic, JWT, Spoon AI (StateGraph, LLM Manager).
-- **Frontend**: Next.js 14 (App Router), React, TailwindCSS, shadcn/ui.
-- **AI & Retrieval**: Google Gemini 2.5 Flash (primary), Ollama fallback (mô hình tùy chọn), ChromaDB + sentence-transformers, Spoon MCP server.
-- **Hạ tầng dữ liệu**: PostgreSQL (port 5433 theo môi trường thực tế), lưu file cục bộ.
-- **Dev tooling**: `fastmcp` cho MCP dev server, scripts tạo admin & bí mật.
+| Lớp | Vai trò chính | Công nghệ |
+| --- | ------------- | --------- |
+| Giao diện | Next.js 14 + React + Tailwind, quản lý auth bằng context, streaming hội thoại | `frontend/app/*`, `components/ui/*` |
+| API & Auth | FastAPI router `auth/users/documents/chat`, JWT (python-jose), bcrypt hash mật khẩu | `app/api`, `app/core/security.py` |
+| Orchestration | `SpoonGraphService` chuẩn hóa câu hỏi, detect intent, lập kế hoạch và ghép kết quả đa tool | `app/services/spoon_graph_service.py` |
+| Retrieval | `CustomChromaClient` dùng SentenceTransformers `paraphrase-multilingual-MiniLM-L12-v2`, lọc theo `document_type` | `app/services/retrieval/custom_chroma.py` |
+| LLM Chain | Gemini 2.5 Flash (primary) + chuỗi fallback cấu hình qua `SPOON_LLM_PROVIDER_CHAIN`; Ollama Qwen2.5 chạy local | `app/core/config.py`, Spoon AI manager |
+| MCP Server | FastMCP expose `policy_txt_lookup`, `ops_txt_lookup`, `conversation_history_simple`, `upload_document` | `app/mcp_server.py` |
+| Persistence | PostgreSQL (SQLAlchemy + Alembic), lưu user/conversation/document; local storage cho file `.txt`; ChromaDB lưu embedding | `app/models`, `storage/`, `chroma_db/` |
+
+## 🧰 Thành Phần Nổi Bật
+
+- **Backend core**: FastAPI, SQLAlchemy 2.0, Alembic migrations, JWT + bcrypt.
+- **LLM stack**: Spoon AI StateGraph + LLM Manager, Gemini 2.5 Flash (primary), chuỗi fallback cấu hình qua `SPOON_LLM_PROVIDER_CHAIN`, Ollama Qwen2.5 cho on-prem.
+- **Retrieval**: SentenceTransformers (paraphrase-multilingual-MiniLM-L12-v2) + ChromaDB, metadata enrichment (document_type, chunk_index, retrieval_tool).
+- **Frontend**: Next.js 14 App Router, React 19, Tailwind CSS 4, component library tự xây (Button/Card/Modal/FileUpload).
 
 ## 🔌 Tích Hợp Spoon AI
 
@@ -43,8 +55,8 @@ Spoon AI là nền tảng cốt lõi giúp hệ thống vận hành RAG một c�
    - Có thể mở rộng thêm provider khác bằng cách cấu hình.
 
 4. **MCP Graph Integration**
-   - MCP server (`app/mcp_server.py`) sử dụng cùng StateGraph và service lớp dưới, bảo đảm kết quả đồng nhất giữa UI và client bên ngoài.
-   - Tool MCP call thẳng vào graph/service (không dựng lại logic).
+   - MCP server (`app/mcp_server.py`).
+   - Toolset: `policy_txt_lookup`, `ops_txt_lookup`, `conversation_history_simple`, `upload_document`.
 
 Spoon AI giúp tách bạch luồng điều phối (graph) khỏi controller, dễ kiểm soát state, logging và mở rộng trong tương lai (ví dụ thêm bước tiền xử lý/tóm tắt).
 
@@ -80,23 +92,15 @@ Spoon AI giúp tách bạch luồng điều phối (graph) khỏi controller, d�
 5. **Khởi tạo database**: `alembic upgrade head`, sau đó `python scripts/create_admin.py`.
 6. **Chạy dịch vụ**:
    - Backend API: `uvicorn app.main:app --reload`.
-   - MCP server: `python app/mcp_server.py` (hoặc `fastmcp dev app/mcp_server.py` khi cần Inspector).
+   - MCP server: `python app/mcp_server.py` (hoặc `fastmcp dev app/mcp_server.py` để dùng Inspector).
    - Frontend: `cd frontend && npm install && npm run dev`.
 
+## 🔮 Định Hướng Phát Triển
+
+- **Đa định dạng & pipeline ingest**: hỗ trợ PDF/DOCX, tự động trích metadata, dashboard giám sát tiến độ ingest.
+- **Observability nâng cao**: analytics hội thoại, heatmap intent, cảnh báo khi retriever trả về ít kết quả hoặc answer_mode=snippet-fallback tăng cao.
+- **Mở rộng MCP/tooling**: tích hợp nguồn dữ liệu khác (SharePoint, wiki), batch upload, trigger re-index, export thống kê hội thoại.
+- **Trải nghiệm frontend**: streaming chunk-by-chunk, markdown + highlight nguồn, push notification khi tài liệu ingest xong.
+- **CI/CD & bảo mật**: Playwright/Cypress E2E, Docker Compose cho dev, tích hợp Secret Manager/SSO doanh nghiệp, audit log chi tiết.
+
 Hướng dẫn chi tiết (cài đặt, chạy, kiểm thử) nằm trong thư mục `guide/`.
-
-## 🧪 Kiểm Thử & Giám Sát
-
-- Tài liệu test nhanh: `guide/TESTING.md`.
-- Script hỗ trợ:
-  - `python scripts/test_upload_document.py`
-  - `python scripts/test_vector_database.py`
-- Tài liệu mẫu: `resources/sample_documents/TAI_LIEU_MAU_CHINH_SACH.txt`.
-
-## 🔮 Hướng Phát Triển Tương Lai
-
-- Mở rộng hỗ trợ upload `.pdf`, `.docx`, và pipeline xử lý văn bản nâng cao.
-- Bổ sung dashboard phân tích usage (conversation analytics, provider metrics).
-- Tích hợp SSO doanh nghiệp và log auditing chi tiết.
-- Hoàn thiện bộ test end-to-end (Playwright/Cypress) sau khi roadmap tối ưu được duyệt.
-- Đóng gói deploy (Docker compose, cloud runbook) khi hệ thống ổn định.

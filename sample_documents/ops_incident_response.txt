@@ -1,37 +1,331 @@
 # Runbook xử lý sự cố chatbot (Incident Response)
 
-## Mục tiêu
-- Phát hiện và khôi phục dịch vụ chatbot trong vòng < 30 phút.
-- Giảm thiểu ảnh hưởng người dùng nội bộ, giữ log phục vụ RCA.
+## Tổng quan
+Tài liệu này mô tả quy trình xử lý sự cố chatbot nội bộ, bao gồm phát hiện, phân loại, khôi phục và báo cáo sau sự cố. Runbook này áp dụng cho tất cả các sự cố liên quan đến chatbot, MCP server, vector database và các dịch vụ phụ thuộc.
 
-## Định nghĩa mức độ
-- Sev1: Chatbot không trả lời hoặc 500 toàn hệ thống.
-- Sev2: Trả lời chậm >10s hoặc 5xx từng phần (ví dụ chỉ policy).
-- Sev3: Lỗi hiển thị UI, metadata sai nhưng vẫn có câu trả lời.
+**Từ khóa tìm kiếm:** xử lý sự cố, incident response, khôi phục dịch vụ, restore service, chatbot lỗi, MCP server down, database error, LLM quota, troubleshooting, debug chatbot, sự cố nghiêm trọng, Sev1 Sev2 Sev3, on-call, khẩn cấp.
 
-## Quy trình xử lý
-1. **Phát hiện**: Alert từ Grafana hoặc phản hồi người dùng → tạo ticket `INC-xxxx`.
-2. **Triển khai on-call**:
-   - DevOps kiểm tra `kubectl get pods -n chatbot`.
-   - Backend lead theo dõi log `uvicorn`/`spoon_graph_service`.
-3. **Khoanh vùng nguyên nhân**:
-   - Kiểm tra health MCP (`GET http://mcp-service:8001/sse`).
-   - Chạy `scripts/test_chat_provider.py --message "ping"` để xác nhận pipeline.
-4. **Hành động khôi phục**:
-   - Restart pod `chatbot-backend` hoặc `mcp-server` nếu crash.
-   - Nếu LLM quota vượt, chuyển tạm `DEFAULT_LLM_PROVIDER=gemini`.
-   - Với sự cố dữ liệu (Chroma down) → chạy `docker restart chroma`.
-5. **Thông báo**: cập nhật Slack `#chatbot-runtime`, nêu thời gian downtime dự kiến.
+## 1. Mục tiêu xử lý sự cố chatbot
 
-## Sau sự cố
-- Hoàn tất RCA trong 48h, lưu tại Confluence > Chatbot > Incident Reports.
-- Checklist RCA:
-  - Nguyên nhân gốc?
-  - Metric nào không cảnh báo sớm?
-  - Cần cập nhật runbook/monitor nào?
+Mục tiêu chính của việc xử lý sự cố chatbot bao gồm:
+- **Phát hiện và khôi phục nhanh:** Phát hiện và khôi phục dịch vụ chatbot trong vòng dưới 30 phút đối với sự cố Sev1, dưới 60 phút đối với sự cố Sev2.
+- **Giảm thiểu ảnh hưởng:** Giảm thiểu ảnh hưởng đến nhân viên nội bộ khi chatbot không hoạt động.
+- **Lưu trữ log đầy đủ:** Lưu trữ đầy đủ log để phân tích nguyên nhân gốc (RCA - Root Cause Analysis) sau sự cố.
+- **Tuân thủ bảo mật:** Đảm bảo tuân thủ các quy định bảo mật trong quá trình xử lý sự cố.
 
-## Tài nguyên tham khảo
-- Dashboard: Grafana → Folder “Chatbot”.
-- Alert contact list: `docs/oncall_roster.md`.
-- Script hỗ trợ: `scripts/collect_logs.ps1`.
+**Từ khóa liên quan:** mục tiêu incident, SLA khôi phục, MTTR, mean time to recovery, downtime, uptime, service availability.
 
+## 2. Phân loại mức độ sự cố (Severity Levels)
+
+Hệ thống phân loại sự cố thành 3 mức độ nghiêm trọng:
+
+### Sev1 - Sự cố nghiêm trọng (Critical)
+**Định nghĩa:** Chatbot hoàn toàn không trả lời, API trả lỗi 5xx toàn hệ thống, hoặc database không truy cập được.
+
+**Đặc điểm:**
+- Toàn bộ dịch vụ chatbot bị gián đoạn
+- Không có người dùng nào có thể sử dụng chatbot
+- Ảnh hưởng đến toàn bộ nhân viên nội bộ
+
+**Thời gian khôi phục mục tiêu:** Dưới 30 phút
+
+**Từ khóa:** Sev1, critical incident, downtime hoàn toàn, service unavailable, complete outage, system down.
+
+### Sev2 - Sự cố trung bình (Major)
+**Định nghĩa:** Thời gian phản hồi quá chậm (>10 giây), hoặc chỉ một phần chức năng bị lỗi.
+
+**Ví dụ cụ thể:**
+- Policy bot vẫn hoạt động bình thường nhưng ops bot bị lỗi
+- Chatbot trả lời nhưng mất hơn 10 giây
+- Một số tính năng không hoạt động nhưng chatbot vẫn có thể trả lời câu hỏi cơ bản
+
+**Thời gian khôi phục mục tiêu:** Dưới 60 phút
+
+**Từ khóa:** Sev2, major incident, partial outage, slow response, degraded performance, một phần lỗi.
+
+### Sev3 - Sự cố nhỏ (Minor)
+**Định nghĩa:** Lỗi trình bày UI, metadata sai nhưng vẫn có câu trả lời hợp lệ, không ảnh hưởng rộng.
+
+**Ví dụ cụ thể:**
+- Giao diện hiển thị sai format
+- Citation không đúng
+- Một số message không hiển thị đúng
+
+**Thời gian khôi phục mục tiêu:** Trong ngày làm việc
+
+**Từ khóa:** Sev3, minor incident, UI bug, cosmetic issue, display error, metadata error.
+
+## 3. Quy trình xử lý sự cố từng bước
+
+### Bước 1: Phát hiện sự cố (Detection)
+
+**Nguồn phát hiện:**
+- Alert tự động từ Grafana hoặc Prometheus
+- Phản hồi trực tiếp từ người dùng qua Slack hoặc email
+- Monitoring system phát hiện metric bất thường
+
+**Hành động ngay lập tức:**
+1. Tạo ticket `INC-xxxx` trên ServiceDesk với mức độ nghiêm trọng phù hợp
+2. Ghi nhận thời gian bắt đầu sự cố
+3. Thông báo đến team on-call qua Slack `#chatbot-runtime`
+
+**Từ khóa:** phát hiện sự cố, detection, alert, monitoring, Grafana alert, Prometheus alert, ServiceDesk ticket.
+
+### Bước 2: Kích hoạt on-call team
+
+**DevOps Engineer:**
+- Kiểm tra trạng thái pods: `kubectl get pods -n chatbot`
+- Tìm pods có status `CrashLoopBackOff`, `Error`, hoặc `Pending`
+- Kiểm tra resource usage: CPU, memory, disk
+- Xem logs pods: `kubectl logs <pod-name> -n chatbot --tail=100`
+
+**Backend Lead:**
+- Tail log backend: `tail -f logs/uvicorn.log`
+- Kiểm tra log Spoon graph service: `grep -i error logs/spoon_graph_service.log`
+- Kiểm tra log MCP server: `tail -f logs/mcp_server.log`
+- Tìm kiếm lỗi trong log: `grep -i "exception\|error\|failed" logs/*.log`
+
+**Từ khóa:** on-call, kích hoạt team, DevOps check, backend lead, kubectl, pod status, log analysis, crash loop.
+
+### Bước 3: Khoanh vùng nguyên nhân (Root Cause Analysis)
+
+**Kiểm tra các thành phần:**
+
+1. **MCP Server Health:**
+   - Gọi `GET http://mcp-service:8001/sse` để kiểm tra MCP health endpoint
+   - Kiểm tra kết nối MCP: `curl http://localhost:8001/health`
+   - Xem log MCP server có lỗi kết nối không
+
+2. **Chatbot Pipeline:**
+   - Chạy test script: `python scripts/test_chat_provider.py --message "ping"`
+   - Kiểm tra xem pipeline có hoạt động không
+   - Xác minh response time và error rate
+
+3. **LLM Provider:**
+   - Kiểm tra quota Gemini API: xem có bị rate limit không
+   - Kiểm tra API key còn hợp lệ không
+   - Test fallback Ollama nếu có: `curl http://localhost:11434/api/generate`
+
+4. **Database & Storage:**
+   - Kiểm tra PostgreSQL connection: `psql -h localhost -U postgres -d chatbot_db -c "SELECT 1;"`
+   - Kiểm tra ChromaDB: `python scripts/test_vector_database.py`
+   - Kiểm tra Redis (nếu dùng cache): `redis-cli ping`
+   - Kiểm tra disk space: `df -h`
+
+**Từ khóa:** khoanh vùng, root cause, nguyên nhân, MCP health check, LLM quota, database check, ChromaDB check, PostgreSQL connection.
+
+### Bước 4: Hành động khôi phục (Recovery Actions)
+
+**Khôi phục theo nguyên nhân:**
+
+1. **Pod lỗi:**
+   - Restart pod: `kubectl delete pod <pod-name> -n chatbot`
+   - Scale up nếu cần: `kubectl scale deployment chatbot-backend --replicas=2 -n chatbot`
+
+2. **MCP Server lỗi:**
+   - Restart MCP server: `kubectl delete pod mcp-server-xxx -n chatbot`
+   - Hoặc restart local: `pkill -f "python.*mcp_server" && python -m app.mcp_server`
+
+3. **LLM Quota vượt:**
+   - Chuyển tạm sang Ollama: set `DEFAULT_LLM_PROVIDER=ollama` trong `.env`
+   - Hoặc dùng fallback model: `GEMINI_MODEL=gemini-1.5-pro` (có thể có quota cao hơn)
+   - Restart backend để áp dụng thay đổi
+
+4. **Database/ChromaDB lỗi:**
+   - Restart ChromaDB: `docker restart chroma` hoặc `kubectl delete pod chroma-db-xxx`
+   - Restore snapshot gần nhất nếu dữ liệu bị mất
+   - Kiểm tra disk space và cleanup nếu cần
+
+5. **Network/Connection Issues:**
+   - Kiểm tra firewall rules
+   - Kiểm tra service mesh (nếu dùng Istio/Linkerd)
+   - Kiểm tra DNS resolution
+
+**Từ khóa:** khôi phục, recovery, restart pod, scale up, switch LLM provider, restore database, fix connection.
+
+### Bước 5: Thông báo và theo dõi
+
+**Thông báo trong Slack:**
+- Cập nhật channel `#chatbot-runtime` với:
+  - Thời gian bắt đầu sự cố
+  - Bước đang thực hiện
+  - ETA khôi phục (Estimated Time to Availability)
+  - Status hiện tại (Investigating → Fixing → Resolved)
+
+**Tạo incident room (cho Sev1):**
+- Tạo channel `#incident-room-YYYYMMDD` cho Sev1
+- Mời tất cả stakeholders vào room
+- Cập nhật real-time trong room này
+
+**Từ khóa:** thông báo, notification, Slack update, incident room, status update, ETA.
+
+## 4. Sau sự cố - Post-Incident
+
+### Báo cáo RCA (Root Cause Analysis)
+
+**Thời hạn:** Hoàn tất RCA trong vòng 48 giờ sau khi sự cố được giải quyết.
+
+**Nơi lưu trữ:** Confluence > Chatbot > Incident Reports > `INC-xxxx-RCA-YYYYMMDD.md`
+
+**Checklist RCA:**
+1. **Nguyên nhân gốc:** Xác định chính xác nguyên nhân gốc rễ của sự cố
+   - Có thể phòng tránh bằng automation không?
+   - Có cần thay đổi architecture không?
+
+2. **Metric & Alerting:**
+   - Metric nào không cảnh báo sớm?
+   - Cần bổ sung alert nào để phát hiện sớm hơn?
+   - Có metric nào bị miss không?
+
+3. **Process & Documentation:**
+   - Có cần cập nhật runbook không?
+   - Có cần cập nhật SOP (Standard Operating Procedure) không?
+   - Có cần đào tạo lại đội ngũ không?
+
+4. **Prevention:**
+   - Làm thế nào để ngăn chặn sự cố tương tự?
+   - Có cần thêm monitoring không?
+   - Có cần thêm test không?
+
+**Từ khóa:** RCA, root cause analysis, post-incident, báo cáo sự cố, incident report, lesson learned, prevention.
+
+### Báo cáo bảo mật
+
+**Khi nào cần báo cáo:**
+- Sự cố liên quan đến dữ liệu cá nhân (PII - Personally Identifiable Information)
+- Sự cố liên quan đến breach security
+- Sự cố liên quan đến unauthorized access
+
+**Thời hạn:** Báo cáo Security trong vòng 24 giờ
+
+**Liên hệ:** security@example.com hoặc hotline bảo mật
+
+**Từ khóa:** security report, data breach, PII, unauthorized access, security incident.
+
+## 5. Bộ công cụ hỗ trợ xử lý sự cố
+
+### Monitoring & Dashboard
+
+**Grafana Dashboard:**
+- URL: `http://grafana.example.com/d/chatbot-main`
+- Metrics theo dõi:
+  - Latency (p50, p95, p99)
+  - Error rate
+  - Request rate
+  - MCP tool success rate
+  - LLM provider usage
+  - Database connection pool
+
+**Prometheus:**
+- Query latency: `rate(chatbot_request_duration_seconds_sum[5m])`
+- Query error rate: `rate(chatbot_errors_total[5m])`
+- Query MCP health: `mcp_server_health`
+
+**Từ khóa:** Grafana, Prometheus, monitoring, dashboard, metrics, latency, error rate.
+
+### Script hỗ trợ
+
+**1. Collect Logs:**
+```powershell
+python scripts/collect_logs.ps1
+```
+- Gom tất cả log backend + MCP trong 15 phút gần nhất
+- Lưu vào file `incident-logs-YYYYMMDD-HHMMSS.zip`
+- Gửi tự động vào Slack channel
+
+**2. Verify ChromaDB:**
+```bash
+python scripts/verify_chroma_embeddings.py
+```
+- So sánh số lượng chunk giữa PostgreSQL và ChromaDB
+- Phát hiện missing embeddings
+- Báo cáo inconsistency
+
+**3. Test Chatbot Pipeline:**
+```bash
+python scripts/test_chat_provider.py --message "test message"
+```
+- Test toàn bộ pipeline từ API đến LLM
+- Kiểm tra response time
+- Phát hiện lỗi trong pipeline
+
+**4. Check Database:**
+```bash
+python scripts/check_database.py
+```
+- Kiểm tra connection pool
+- Kiểm tra slow queries
+- Kiểm tra deadlocks
+
+**Từ khóa:** script hỗ trợ, collect logs, verify ChromaDB, test pipeline, check database, diagnostic script.
+
+### Incident Bot trên Slack
+
+**Slash Commands:**
+- `/incident start` - Bắt đầu ghi nhận incident, tạo timeline
+- `/incident update <message>` - Cập nhật status
+- `/incident resolve` - Đánh dấu incident đã được giải quyết
+- `/incident timeline` - Xem timeline của incident hiện tại
+
+**Từ khóa:** incident bot, Slack bot, slash command, timeline, incident tracking.
+
+## 6. Liên hệ và Escalation
+
+### On-Call Rotation
+
+**DevOps On-Call:**
+- Email: devops@example.com
+- PagerDuty: DevOps Team
+- Slack: `@devops-oncall`
+
+**Backend Lead:**
+- Email: backend-lead@example.com
+- Slack: `@backend-lead`
+
+**Bảo mật & Pháp chế:**
+- Email: security@example.com
+- Hotline: 0987.222.333 (24/7)
+
+### Slack Channels
+
+**#chatbot-runtime:**
+- Trao đổi realtime về sự cố
+- Cập nhật status
+- Thông báo khôi phục
+
+**#incident-room:**
+- Tạo khi có Sev1
+- Tập trung tất cả stakeholders
+- Timeline chi tiết
+
+**Từ khóa:** liên hệ, contact, escalation, on-call, PagerDuty, Slack channel, support.
+
+## 7. FAQ - Câu hỏi thường gặp
+
+**Q: Làm sao biết chatbot đang gặp sự cố?**
+A: Kiểm tra Grafana dashboard hoặc nhận alert từ Prometheus. Nếu không có alert, người dùng sẽ báo qua Slack.
+
+**Q: Khi nào cần tạo incident room?**
+A: Chỉ khi có Sev1 (sự cố nghiêm trọng). Sev2 và Sev3 có thể xử lý trong channel thường.
+
+**Q: Làm sao kiểm tra LLM quota?**
+A: Kiểm tra Gemini API dashboard hoặc chạy test request. Nếu bị rate limit, chuyển sang Ollama fallback.
+
+**Q: ChromaDB bị lỗi thì làm sao?**
+A: Restart ChromaDB container. Nếu vẫn lỗi, restore từ backup gần nhất.
+
+**Q: MCP server không kết nối được?**
+A: Kiểm tra health endpoint, xem log MCP server, kiểm tra network và firewall rules.
+
+**Từ khóa:** FAQ, câu hỏi thường gặp, troubleshooting guide, common issues.
+
+## 8. Tài liệu tham khảo
+
+- Wiki > Chatbot > Incident Response Procedures
+- Confluence > Chatbot > Runbooks
+- GitHub > chatbot-repo > docs/incident-response.md
+- Slack > #chatbot-runtime (archive)
+
+**Phiên bản:** 2.0
+**Cập nhật lần cuối:** 2025-01-15
+**Người phụ trách:** DevOps Team & Backend Lead

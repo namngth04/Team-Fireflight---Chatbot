@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -191,6 +192,120 @@ class SpoonGraphService:
             return ["ops_txt_lookup"]
         return ["policy_txt_lookup", "ops_txt_lookup"]
 
+    async def _split_query_by_intent(
+        self,
+        *,
+        user_query: str,
+        rewritten_query: str,
+    ) -> Dict[str, str]:
+        if not self.llm_manager:
+            return {}
+
+        system_prompt = (
+            "Bạn nhận vào một câu hỏi có thể chứa cả nội dung chính sách (policy) "
+            "và nội dung vận hành/sự cố (ops). "
+            "Hãy tách câu hỏi thành hai phần riêng biệt:\n"
+            "- policy_query: phần liên quan đến chính sách, phúc lợi, nhân sự, nghỉ phép, remote work...\n"
+            "- ops_query: phần liên quan đến vận hành, kỹ thuật, deploy, xử lý sự cố, runbook...\n\n"
+            "Nếu câu hỏi chỉ có một phần, để phần kia là chuỗi rỗng. "
+            "Nếu câu hỏi có cả hai phần, tách rõ ràng. "
+            "Chỉ trả về JSON hợp lệ, không có markdown, không có giải thích thêm: "
+            '{"policy_query": "<câu hỏi policy hoặc rỗng>", '
+            '"ops_query": "<câu hỏi ops hoặc rỗng>"}'
+        )
+        user_prompt = (
+            f"Câu hỏi gốc: {user_query}\n"
+            f"Câu hỏi đã chuẩn hóa (nếu có): {rewritten_query}\n"
+            "Yêu cầu: tách câu hỏi cho từng nhóm."
+        )
+        messages = [
+            Message(role="system", content=system_prompt),
+            Message(role="user", content=user_prompt),
+        ]
+        content, _ = await self._call_llm(messages, purpose="intent-query-split")
+        if not content:
+            return {}
+
+        # Try to extract JSON from markdown code block if present
+        content_clean = content.strip()
+        if content_clean.startswith("```"):
+            # Extract content between ```json and ```
+            match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", content_clean, re.DOTALL)
+            if match:
+                content_clean = match.group(1).strip()
+        elif content_clean.startswith("{"):
+            # Already JSON, use as is
+            pass
+        else:
+            # Try to find JSON object in the content
+            match = re.search(r"\{.*?\}", content_clean, re.DOTALL)
+            if match:
+                content_clean = match.group(0)
+
+        try:
+            data = json.loads(content_clean)
+        except (json.JSONDecodeError, AttributeError):
+            logger.warning("Failed to parse query split JSON: %s", content[:200])
+            return {}
+
+        result: Dict[str, str] = {}
+        policy_query = (data.get("policy_query") or "").strip()
+        ops_query = (data.get("ops_query") or "").strip()
+        if policy_query:
+            result["policy"] = policy_query
+        if ops_query:
+            result["ops"] = ops_query
+        return result
+
+    async def _derive_tool_queries(
+        self,
+        *,
+        plan: List[str],
+        user_query: str,
+        rewritten_query: str,
+    ) -> Dict[str, str]:
+        if not plan:
+            return {}
+
+        # default: everyone uses rewritten query
+        queries = {tool: rewritten_query for tool in plan}
+
+        if len(plan) == 1:
+            split = await self._split_query_by_intent(
+                user_query=user_query,
+                rewritten_query=rewritten_query,
+            )
+            if split:
+                policy_q = split.get("policy")
+                ops_q = split.get("ops")
+                if policy_q and plan[0] == "policy_txt_lookup":
+                    queries[plan[0]] = policy_q
+                if ops_q and plan[0] == "ops_txt_lookup":
+                    queries[plan[0]] = ops_q
+            return queries
+
+        split = await self._split_query_by_intent(
+            user_query=user_query,
+            rewritten_query=rewritten_query,
+        )
+        if not split:
+            logger.debug("Query split returned empty, using rewritten_query for all tools")
+            return queries
+
+        policy_q = split.get("policy")
+        ops_q = split.get("ops")
+        
+        logger.debug("Query split result: policy=%s, ops=%s", policy_q, ops_q)
+
+        if policy_q and "policy_txt_lookup" in plan:
+            queries["policy_txt_lookup"] = policy_q
+            logger.debug("Using split policy query for policy_txt_lookup: %s", policy_q)
+        if ops_q and "ops_txt_lookup" in plan:
+            queries["ops_txt_lookup"] = ops_q
+            logger.debug("Using split ops query for ops_txt_lookup: %s", ops_q)
+
+        return queries
+
     async def _rewrite_query(self, user_query: str) -> Tuple[str, Optional[str]]:
         if not self.llm_manager:
             return user_query, None
@@ -333,28 +448,58 @@ class SpoonGraphService:
             if key not in ordering:
                 ordering.append(key)
 
+        # When we have multiple tools, ensure we get at least 3 items from each bucket
+        # before moving to the next (round-robin with minimum guarantee)
         prioritized: List[Dict[str, Any]] = []
-        while True:
+        min_per_bucket = 3  # Minimum items to take from each bucket
+        max_total = 10  # Maximum total items to prioritize
+        
+        # First pass: take minimum from each bucket
+        for key in ordering:
+            bucket = buckets.get(key)
+            if bucket:
+                for _ in range(min(min_per_bucket, len(bucket))):
+                    if len(prioritized) >= max_total:
+                        break
+                    prioritized.append(bucket.pop(0))
+            if len(prioritized) >= max_total:
+                break
+        
+        # Second pass: round-robin remaining items
+        while len(prioritized) < max_total:
             added = False
             for key in ordering:
                 bucket = buckets.get(key)
-                if bucket:
+                if bucket and len(prioritized) < max_total:
                     prioritized.append(bucket.pop(0))
                     added = True
             if not added:
                 break
+        
         return prioritized
 
     def _build_citation_section(self, evidence: List[Dict[str, Any]], limit: int = 2) -> str:
         lines: List[str] = []
-        for idx, item in enumerate(evidence[:limit], start=1):
+        seen_files: set[str] = set()
+        for idx, item in enumerate(evidence[:limit * 2], start=1):  # Check more items to find unique files
             meta = item.get("metadata") or {}
             filename = meta.get("filename") or meta.get("source") or f"Tài liệu {idx}"
             section = meta.get("section") or meta.get("heading") or ""
+            
+            # Skip if we've already seen this filename (avoid duplicates)
+            if filename in seen_files:
+                continue
+            seen_files.add(filename)
+            
             if section:
                 lines.append(f"- {filename} › {section}")
             else:
                 lines.append(f"- {filename}")
+            
+            # Stop when we have enough unique citations
+            if len(lines) >= limit:
+                break
+        
         if not lines:
             return ""
         return "\n\nNguồn:\n" + "\n".join(lines)
@@ -420,16 +565,32 @@ class SpoonGraphService:
         if not self.llm_manager or not evidence:
             return None, None, "snippet"
 
+        # Group evidence by document_type to ensure we have both policy and ops
+        evidence_by_type: Dict[str, List[Dict[str, Any]]] = {}
+        for item in evidence:
+            doc_type = item.get("metadata", {}).get("document_type", "other")
+            evidence_by_type.setdefault(doc_type, []).append(item)
+        
+        # Build chunks ensuring we have items from each type
         chunks = []
-        for item in evidence[:3]:
-            meta = item.get("metadata") or {}
-            filename = meta.get("filename") or meta.get("source") or "Tài liệu"
-            section = meta.get("section") or meta.get("heading") or ""
-            snippet = (item.get("content") or "").strip()
-            if not snippet:
-                continue
-            header = f"{filename}" + (f" › {section}" if section else "")
-            chunks.append(f"{header}:\n{snippet}")
+        max_per_type = 4  # Take up to 4 items from each document type
+        total_limit = 8  # Total chunks limit
+        
+        # First, take items from each type
+        for doc_type, items in evidence_by_type.items():
+            for item in items[:max_per_type]:
+                if len(chunks) >= total_limit:
+                    break
+                meta = item.get("metadata") or {}
+                filename = meta.get("filename") or meta.get("source") or "Tài liệu"
+                section = meta.get("section") or meta.get("heading") or ""
+                snippet = (item.get("content") or "").strip()
+                if not snippet:
+                    continue
+                header = f"{filename}" + (f" › {section}" if section else "")
+                chunks.append(f"{header}:\n{snippet}")
+            if len(chunks) >= total_limit:
+                break
 
         if not chunks:
             return None, None, "snippet"
@@ -451,6 +612,12 @@ class SpoonGraphService:
                     * **VÍ DỤ (Quan trọng):** Khi snippet nói "Làm việc từ Thứ 2 đến Thứ 6" và người dùng hỏi "Thứ 7 có nghỉ không?", bạn được phép suy luận và trả lời "Có, theo tài liệu, ngày làm việc là Thứ 2 - Thứ 6, vì vậy Thứ 7 là ngày nghỉ."
                 3.  **TRUNG THỰC KHI SUY LUẬN:** Khi thực hiện suy luận (như các ví dụ trên), hãy cho thấy cơ sở của bạn một cách ngắn gọn, tự nhiên. (Ví dụ: "Vì công ty làm việc từ T2-T6, nên T7 là ngày nghỉ...").
 
+                [PHÂN TÍCH CÂU HỎI NHIỀU Ý - CỰC KỲ QUAN TRỌNG]
+                1.  Khi câu hỏi gồm nhiều ý (ví dụ vừa hỏi về chính sách, vừa hỏi về xử lý sự cố), BẮT BUỘC phải chia câu trả lời thành từng đoạn rõ ràng ứng với mỗi ý. KHÔNG ĐƯỢC bỏ qua bất kỳ ý nào.
+                2.  Nếu có snippet cho một phần, PHẢI trả lời đầy đủ phần đó trước. Sau đó mới xử lý phần còn lại.
+                3.  Nếu thiếu snippet cho một phần, chỉ nêu rõ cho phần đó: "Về [ý thiếu], tôi không tìm thấy thông tin trong tài liệu." KHÔNG được nói chung chung "không tìm thấy" cho toàn bộ câu hỏi.
+                4.  CẤM bỏ qua hoặc không đề cập đến một phần của câu hỏi. Nếu câu hỏi có 2 ý, câu trả lời PHẢI có ít nhất 2 đoạn tương ứng.
+
                 [QUY TẮC VỀ CÂU TRẢ LỜI]
                 1.  **TÍNH BAO QUÁT (Comprehensive):** Luôn đảm bảo trả lời ĐẦY ĐỦ tất cả các ý/phần trong câu hỏi của người dùng.
                 2.  **TÍNH LINH HOẠT (Flexible):** Tùy chỉnh độ dài và chi tiết dựa trên ý định của người dùng (súc tích cho câu hỏi "Là gì", chi tiết cho câu hỏi "Như thế nào").
@@ -460,12 +627,24 @@ class SpoonGraphService:
                     * **Không bịa đặt nguồn:** Nếu không có tên tài liệu cụ thể trong metadata, chỉ cần trả lời thông tin, không cần bịa ra nguồn.
                     * **Tránh:** Không dùng các từ chung chung như "theo snippet" hay "theo trích đoạn được cung cấp"."""
         )
+        # Detect if query has multiple parts by checking evidence types
+        evidence_types = set(item.get("metadata", {}).get("document_type", "other") for item in evidence)
+        has_multiple_types = len(evidence_types) > 1
+        
+        query_instruction = ""
+        if has_multiple_types:
+            query_instruction = (
+                "\n\n⚠️ QUAN TRỌNG: Câu hỏi này có nhiều phần (chính sách và vận hành). "
+                "BẮT BUỘC phải trả lời ĐẦY ĐỦ từng phần. Nếu thiếu snippet cho một phần, "
+                "chỉ nêu rõ cho phần đó, KHÔNG được bỏ qua hoặc nói chung chung."
+            )
+        
         user_prompt = (
             f"Câu hỏi: {user_query}\n\n"
             f"Loại câu hỏi: {intent or 'chung'}\n\n"
             f"Tài liệu thu được:\n{evidence_text}\n\n"
-            "Yêu cầu: Viết câu trả lời hoàn chỉnh, đủ ý quan trọng (số liệu, điều kiện,"
-            " bước thực hiện). Không vượt quá 6 câu."
+            f"Yêu cầu: Viết câu trả lời hoàn chỉnh, đủ ý quan trọng (số liệu, điều kiện,"
+            f" bước thực hiện). Không vượt quá 8 câu.{query_instruction}"
         )
 
         messages = [
@@ -497,11 +676,16 @@ class SpoonGraphService:
         rewritten_query, rewrite_provider = await self._rewrite_query(user_query) if rewrite else (user_query, None)
         intent, intent_source, intent_query = await self._detect_intent(rewritten_query)
         plan = self._plan_tools(intent)
+        tool_queries = await self._derive_tool_queries(
+            plan=plan,
+            user_query=user_query,
+            rewritten_query=rewritten_query,
+        )
 
         tasks = [
             self._execute_tool(
                 tool_name=tool_name,
-                query=rewritten_query,
+                query=tool_queries.get(tool_name, rewritten_query),
                 top_k=top_k,
                 include_content=True,
             )
@@ -515,8 +699,9 @@ class SpoonGraphService:
         tool_runs: List[Dict[str, Any]] = []
 
         for tool_name, payload, error in results:
+            actual_query = tool_queries.get(tool_name, rewritten_query)
             if error:
-                tool_runs.append({"tool": tool_name, "error": error})
+                tool_runs.append({"tool": tool_name, "error": error, "query": actual_query})
                 continue
 
             tool_calls.append(tool_name)
@@ -529,16 +714,36 @@ class SpoonGraphService:
                         meta["document_type"] = document_type
                     meta.setdefault("retrieval_tool", tool_name)
                 evidence.extend(extracted)
+            
+            logger.debug(
+                "Tool %s returned %d results with query: %s",
+                tool_name,
+                len(extracted),
+                actual_query,
+            )
+            
             tool_runs.append(
                 {
                     "tool": tool_name,
                     "result_count": len(extracted),
-                    "query": user_query,
+                    "query": actual_query,  # Log actual query used, not original
                 }
             )
 
         answer_mode = "snippet-fallback"
         prioritized_evidence = self._prioritize_evidence(evidence, tool_calls)
+        
+        # Log evidence distribution for debugging
+        evidence_by_type: Dict[str, int] = {}
+        for item in prioritized_evidence:
+            doc_type = item.get("metadata", {}).get("document_type", "unknown")
+            evidence_by_type[doc_type] = evidence_by_type.get(doc_type, 0) + 1
+        logger.debug(
+            "Prioritized evidence distribution: %s (total: %d)",
+            evidence_by_type,
+            len(prioritized_evidence),
+        )
+        
         summary_text, summary_provider, summary_mode = await self._summarize_with_llm(
             user_query=user_query,
             evidence=prioritized_evidence,

@@ -6,23 +6,24 @@ MCP (Model Context Protocol) server cho phép các client (Inspector, Spoon tool
 
 - Entry point: `app/mcp_server.py`.
 - Tool hiện có:
-  - `query_documents`
-  - `upload_document`
-  - `chat_with_bot`
-  - `get_conversation_history`
+  - `policy_txt_lookup` – truy vấn snippet tài liệu chính sách.
+  - `ops_txt_lookup` – truy vấn snippet runbook/vận hành.
+  - `conversation_history_simple` – trả về metadata + message gần nhất của conversation.
+  - `upload_document` – upload `.txt`, parse chunk và index vào Chroma.
 - Sử dụng `fastmcp` để hỗ trợ dev (proxy + Inspector).
-- Hỗ trợ transport HTTP (mặc định) và STDIO (cấu hình qua biến môi trường).
+- Hỗ trợ transport `sse` (mặc định), `http`, `stdio` (cấu hình qua biến môi trường).
 
 ## 2. Cách Chạy
 
-### 2.1 HTTP trực tiếp
+### 2.1 SSE/HTTP trực tiếp
 
 ```bash
-python app/mcp_server.py
+python -m app.mcp_server
 ```
 
-- Endpoint: `http://localhost:8001/mcp/` (đổi bằng `MCP_SERVER_PORT`).
-- Phù hợp cho client nội bộ gọi qua HTTP/REST wrapper.
+- Mặc định transport `sse` với endpoint `http://localhost:8001/sse` (đổi bằng `MCP_SERVER_PORT` + `SPOON_MCP_PATH`).
+- Đặt `MCP_TRANSPORT=http` để chuyển sang endpoint `http://localhost:8001/mcp`.
+- Phù hợp khi Spoon agent hoặc client nội bộ kết nối trực tiếp mà không cần proxy.
 
 ### 2.2 Dev với Inspector
 
@@ -34,7 +35,7 @@ fastmcp dev app/mcp_server.py
 - Inspector tự mở. Nếu không, truy cập thủ công.
 - Khi Inspector yêu cầu cấu hình:
   - Transport Type: `Streamable HTTP`
-  - URL: `http://localhost:3001/sse` (hoặc `http://localhost:8001/mcp/` nếu không dùng proxy)
+  - URL: `http://localhost:3001/sse` (hoặc `http://localhost:8001/sse` nếu không dùng proxy)
   - Connection Type: `Direct`
 
 ### 2.3 STDIO (tuỳ chọn)
@@ -46,12 +47,12 @@ fastmcp dev app/mcp_server.py
   ```
 - MCP server đọc/ghi qua STDIN/STDOUT (hữu ích khi tích hợp vào process khác).
 
-## 3. Biến Môi Trường Liên Quan
+## 3. Biến môi trường liên quan
 
-- `MCP_SERVER_ENABLED` – bật/tắt server.
-- `MCP_SERVER_PORT` – port HTTP (mặc định 8001).
-- `MCP_TRANSPORT` – `http` hoặc `stdio`.
-- `MCP_PROXY_TOKEN` – dùng khi kết nối qua proxy `fastmcp` để xác thực.
+- `MCP_SERVER_ENABLED`, `MCP_SERVER_HOST`, `MCP_SERVER_PORT`.
+- `MCP_TRANSPORT` (`sse`/`http`/`stdio`) và `SPOON_MCP_PATH`.
+- `SPOON_MCP_TRANSPORT`, `SPOON_MCP_URL` – override URL khi SpoonGraph chạy ở process khác.
+- `MCP_PROXY_TOKEN` – dùng để bảo vệ proxy `fastmcp dev`.
 - `LOG_LEVEL` (tuỳ chọn) – điều chỉnh mức log (info/debug).
 
 Chi tiết đầy đủ xem [ENVIRONMENT.md](./ENVIRONMENT.md).
@@ -62,17 +63,17 @@ Chi tiết đầy đủ xem [ENVIRONMENT.md](./ENVIRONMENT.md).
 - Dùng `app.services` để truy vấn DB, vector DB, LLM.
 - Khi upload document qua tool, cần quyền file system (đường dẫn tính từ gốc project).
 
-## 5. Kiểm Thử
+## 5. Kiểm thử
 
-- Dùng `fastmcp dev` và gọi tool trong Inspector theo [TESTING.md](./TESTING.md).
-- Script test API có thể dùng độc lập (VD: `python scripts/test_upload_document.py`), nhưng MCP tools nên test qua Inspector hoặc client tùy chỉnh.
+- Dùng `fastmcp dev` và gọi từng tool theo checklist [TESTING.md](./TESTING.md).
+- Các script trong `scripts/` (ví dụ `test_upload_document.py`) kiểm tra trực tiếp backend; với MCP nên ưu tiên Inspector để xem payload trả về.
 
 ## 6. Sự Cố Thường Gặp
 
 | Lỗi | Nguyên nhân | Cách xử lý |
 |-----|-------------|-----------|
 | `ModuleNotFoundError: No module named 'app'` | Chạy sai thư mục, thiếu `PYTHONPATH` | Chạy từ gốc dự án hoặc set `PYTHONPATH=.` |
-| `FetchError: ECONNREFUSED` | Inspector trỏ sai URL | Dùng `http://localhost:3001/sse` (proxy) hoặc `http://localhost:8001/mcp/` với `/mcp/` ở cuối |
+| `FetchError: ECONNREFUSED` | Inspector trỏ sai URL | Dùng `http://localhost:3001/sse` (proxy) hoặc endpoint khớp transport (`/sse` hoặc `/mcp`) |
 | `MCP error -32602` | JSON input sai schema | Kiểm tra lại JSON (tham khảo ví dụ trong README/tool docstring) |
 | `Received request before initialization was complete` | MCP chưa kết nối backend/kho dữ liệu | Đảm bảo backend chạy trước, MCP log “Server ready” |
 

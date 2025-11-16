@@ -2,14 +2,14 @@
 
 Tài liệu này giữ vai trò checklist kiểm tra thủ công (smoke test) sau khi cài đặt hoặc deploy. Với từng nhóm, có thể mở rộng thành case chi tiết trong tương lai.
 
-## 1. Chuẩn Bị Chung
+## 1. Chuẩn bị chung
 
 - Backend, MCP server, frontend đều đang chạy (xem [RUN.md](./RUN.md)).
-- Đảm bảo đã có ít nhất một tài liệu `.txt` (sử dụng `resources/sample_documents/TAI_LIEU_MAU_CHINH_SACH.txt` nếu cần).
+- Đảm bảo đã có ít nhất một tài liệu `.txt` (sử dụng thư mục `sample_documents/` nếu cần).
 - Tài khoản admin hoạt động.
 - Có kết nối internet (để gọi Gemini).
 
-## 2. API Backend (Postman/cURL)
+## 2. API backend (Postman/cURL)
 
 | Bước | Endpoint | Nội dung kiểm tra | Ghi chú |
 |------|----------|-------------------|---------|
@@ -17,11 +17,11 @@ Tài liệu này giữ vai trò checklist kiểm tra thủ công (smoke test) sa
 | 2 | `GET /api/users/` | Trả về danh sách người dùng | Header `Authorization: Bearer <token>` |
 | 3 | `POST /api/users/` | Tạo user mới, expect 201 | Kiểm tra validation email/phone |
 | 4 | `PUT /api/users/{id}` | Cập nhật user, nhận alert thành công | |
-| 5 | `POST /api/documents/upload` | Upload `.txt` < 50MB, expect 201 | Form-data: `file`, `document_type`, `description` |
-| 6 | `GET /api/documents/?document_type=policies` | Filter hoạt động, pagination nếu có | |
+| 5 | `POST /api/documents/upload` | Upload `.txt` < 50MB, expect 201 | Form-data: `file`, `document_type` ∈ {`policy`,`ops`}, `description` |
+| 6 | `GET /api/documents/?document_type=policy` | Filter hoạt động, pagination nếu có | |
 | 7 | `DELETE /api/documents/{id}` (tuỳ chọn) | Xoá document, expect 200 | Chỉ test nếu cần |
 
-## 3. Frontend (Manual)
+## 3. Frontend (manual)
 
 1. Đăng nhập admin: xuất hiện toast thành công, handle lỗi nếu nhập sai.
 2. Điều hướng tới `Quản lý người dùng`:
@@ -35,7 +35,7 @@ Tài liệu này giữ vai trò checklist kiểm tra thủ công (smoke test) sa
 4. Đăng nhập bằng user vừa tạo:
    - Kiểm tra chuyển hướng tới trang chat, không hiển thị dashboard admin.
 
-## 4. Chatbot & RAG
+## 4. Chatbot & Spoon graph
 
 1. Tạo hội thoại mới trên `/chat`.
 2. Đặt câu hỏi “Chính sách nghỉ phép năm 2025 như thế nào?”.
@@ -45,21 +45,21 @@ Tài liệu này giữ vai trò checklist kiểm tra thủ công (smoke test) sa
    - Tin nhắn được lưu (refresh trang vẫn hiển thị).
 4. Tắt tạm GEMINI API key (hoặc chỉnh sai), gửi câu hỏi mới:
    - Fallback Ollama hoạt động nếu đã bật.
-   - Log hiển thị retry/backoff.
-5. Đặt câu hỏi không có trong tài liệu → bot trả lời lịch sự, gợi ý upload thêm dữ liệu.
+   - Log hiển thị retry/backoff (`LLM_RETRY_*`).
+5. Đặt câu hỏi không có trong tài liệu → bot trả về lỗi lịch sự + metadata `graph-no-answer`.
 
-## 5. MCP Tools (Inspector hoặc client)
+## 5. MCP tools (Inspector hoặc client)
 
 | Tool | Input mẫu | Kỳ vọng |
 |------|-----------|---------|
-| `query_documents` | `{"query": "nghỉ phép", "top_k": 3}` | `results` trả về <= 3, metadata đầy đủ |
-| `upload_document` | `{"file_path": "resources/sample_documents/TAI_LIEU_MAU_CHINH_SACH.txt", ...}` | Trả về `id`, `filename`, DB tăng record |
-| `chat_with_bot` | `{"message": "...", "username": "admin"}` | Trả về `conversation_id`, `response`, `provider_used` |
-| `get_conversation_history` | `{"conversation_id": <id>}` | Trả về danh sách messages, có timestamp |
+| `policy_txt_lookup` | `{"query": "nghỉ phép", "top_k": 3}` | `results` trả về ≤3, metadata có `document_type=policy` |
+| `ops_txt_lookup` | `{"query": "deploy backend", "top_k": 2}` | Kết quả thuộc nhóm `ops`, có trường `distance` |
+| `upload_document` | `{"file_path": "sample_documents/policy_time_off_v2.txt", "document_type": "policy", "uploaded_by": "admin"}` | Trả về `id`, `filename`, DB tăng record |
+| `conversation_history_simple` | `{"conversation_id": <id>, "username": "admin"}` | `messages` chứa lịch sử, `count` ≤ limit |
 
 > Thử cả 2 chế độ: thông qua proxy (`fastmcp dev`) và kết nối trực tiếp (`http://localhost:8001/mcp/`).
 
-## 6. Vector Database
+## 6. Vector database
 
 - Chạy `python scripts/test_vector_database.py`.
 - Kỳ vọng:
@@ -68,7 +68,7 @@ Tài liệu này giữ vai trò checklist kiểm tra thủ công (smoke test) sa
   - Query mẫu (`nghỉ phép`, `bảo mật`, `làm việc từ xa`) trả kết quả > 0.
 - Nếu collection rỗng → upload lại tài liệu và chạy script lần nữa.
 
-## 7. Kiểm Tra Log & Giám Sát
+## 7. Kiểm tra log & giám sát
 
 - `uvicorn`:
   - Không có lỗi 500 trong luồng chính.

@@ -1,17 +1,17 @@
 # 📘 Project Guide
 
-Thư mục `guide/` là bộ tài liệu chính thức cho dự án chatbot nội bộ. Mỗi tài liệu tập trung vào một phần của hệ thống để dễ tra cứu và cập nhật.
+Thư mục `guide/` là nguồn tài liệu duy nhất cần theo dõi khi bàn giao cho đội phát triển/vận hành. Mỗi file tập trung vào một chủ đề, cập nhật đúng với kiến trúc FastAPI + Spoon AI hiện tại.
 
-## Tổng Quan Tài Liệu
+## Sơ đồ tài liệu
 
-- [INSTALL.md](./INSTALL.md) – Chuẩn bị môi trường, cài đặt backend, Spoon AI, frontend, cấu hình `.env`, thiết lập database.
-- [RUN.md](./RUN.md) – Quy trình khởi động từng thành phần, quản lý biến môi trường và thứ tự đề xuất.
-- [TESTING.md](./TESTING.md) – Checklist kiểm thử thủ công, hướng dẫn dùng script hỗ trợ.
-- [ENVIRONMENT.md](./ENVIRONMENT.md) – Danh sách biến môi trường, mô tả giá trị, ghi chú bảo mật.
-- [BACKEND.md](./BACKEND.md) – Kiến trúc backend, câu lệnh migration, seed, script quản trị, test.
-- [FRONTEND.md](./FRONTEND.md) – Cấu trúc frontend, script npm, cấu hình UI, lưu ý triển khai.
-- [MCP_SERVER.md](./MCP_SERVER.md) – Hướng dẫn vận hành MCP server (HTTP/SSE/STDIO), công cụ, xử lý sự cố.
-- [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) – Các lỗi phổ biến (Gemini rate limit, Ollama, ModuleNotFoundError, kết nối MCP) và cách khắc phục.
+- [INSTALL.md](./INSTALL.md) – Chuẩn bị môi trường (Python, Node, PostgreSQL, Spoon core), tạo `.env`, migrate DB, cài frontend.
+- [ENVIRONMENT.md](./ENVIRONMENT.md) – Toàn bộ biến môi trường chia nhóm (DB/JWT, LLM, MCP, lưu trữ, frontend).
+- [RUN.md](./RUN.md) – Thứ tự bật dịch vụ (PostgreSQL → FastAPI → Ollama → MCP → Next.js), kèm lệnh nhanh và mẹo giám sát.
+- [BACKEND.md](./BACKEND.md) – Kiến trúc backend, pipeline tài liệu, luồng chat Spoon graph, script quản trị.
+- [FRONTEND.md](./FRONTEND.md) – App Router layout, API layer, AuthContext, checklist UI/UX.
+- [MCP_SERVER.md](./MCP_SERVER.md) – Khởi chạy FastMCP server, danh sách tool (`policy_txt_lookup`, `ops_txt_lookup`, `conversation_history_simple`, `upload_document`), cách dùng Inspector/proxy.
+- [TESTING.md](./TESTING.md) – Checklist smoke test (API, frontend, chat, MCP, vector DB) + payload mẫu.
+- [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) – Lỗi thường gặp (DB, MCP, Gemini, Ollama, frontend) và hướng xử lý.
 
-> Lưu ý: Tài liệu cũ trong `docs/` chỉ phục vụ giai đoạn phát triển và đã bị `.gitignore`. Khi bàn giao hoặc chia sẻ với đội dự án, ưu tiên sử dụng bộ tài liệu trong `guide/`.
+> Các tài liệu cũ trong `docs/` đã bỏ và bị ignore. Luôn cập nhật/tra cứu tại `guide/` để tránh sai lệch.
 

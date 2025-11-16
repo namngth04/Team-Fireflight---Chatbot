@@ -37,7 +37,15 @@ Write-Host "✅ Services launched."
 Write-Host "   - Backend + Spoon graph runs via uvicorn."
 Write-Host "   - MCP server exposes tools over FastMCP (default http://localhost:$defaultMcpPort)."
 
-$frontendCmd = "cd `"$frontendDir`"; if (Test-Path package-lock.json) { npm install --no-fund --no-audit --silent } ; npm run dev"
+$frontendCmd = @"
+cd `"$frontendDir`"
+if (-not (Test-Path node_modules)) {
+    Write-Host 'Installing frontend dependencies...'
+    npm install --no-fund --no-audit
+}
+npm run build
+npm run start
+"@
 Start-ServiceWindow -Title "Next.js Frontend" -Command $frontendCmd -WorkingDirectory $frontendDir
-Write-Host "   - Frontend served via npm dev server."
+Write-Host "   - Frontend production server (npm run start) on http://localhost:3000."
 
